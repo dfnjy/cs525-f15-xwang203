@@ -1,7 +1,10 @@
 #ifndef STORAGE_MGR_H
 #define STORAGE_MGR_H
 
+#define PAGE_SIZE 4096
+
 #include "dberror.h"
+
 
 /************************************************************
  *                    handle data structures                *
