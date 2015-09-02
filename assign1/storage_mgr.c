@@ -38,8 +38,6 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
     fHandle->curPagePos=0;  //but this is an offset
     fHandle->mgmtInfo=pFile; //POSIX file descriptor
     
-    free(pFile);
-    pFile=NULL;
     return RC_OK;
 }
 
