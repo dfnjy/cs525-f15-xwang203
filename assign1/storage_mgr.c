@@ -12,7 +12,7 @@ RC createPageFile (char *fileName)
 {
     FILE *pFile = fopen(fileName,"w");
     
-    SM_PageHandle str = (char *)malloc(PAGE_SIZE); //apply for a page
+    SM_PageHandle str = (char *)malloc(PAGE_SIZE); //apply for a page using malloc in C
     memset(str,'\0',PAGE_SIZE); //fill a page full of '\0'
     
     fprintf(pFile,"%d\n",1); //write total pages=1
@@ -38,6 +38,8 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle)
     fHandle->curPagePos=0;  //but this is an offset
     fHandle->mgmtInfo=pFile; //POSIX file descriptor
     
+    free(pFile);
+    pFile=NULL;
     return RC_OK;
 }
 
@@ -47,7 +49,9 @@ RC closePageFile (SM_FileHandle *fHandle)
     if (fail)
         return RC_FILE_HANDLE_NOT_INIT;
     
+    free(fHandle->fileName);
     fHandle->fileName= NULL;
+    free(fHandle->mgmtInfo);
     fHandle->mgmtInfo= NULL;
     return RC_OK;
 }
@@ -149,7 +153,8 @@ RC ensureCapacity (int numberOfPages, SM_FileHandle *fHandle)
     {
         int diff = numberOfPages - fHandle->totalNumPages;
         RC return_value;
-        for (int i=0; i < diff; i++)
+        int i; //you have to declare i outside of the loop >.>
+        for (i=0; i < diff; i++)
         {
             return_value = appendEmptyBlock(fHandle);
             if (return_value!=RC_OK)

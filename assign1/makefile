@@ -10,4 +10,4 @@ test_assign1: $(OBJ)
 	gcc -o $@ $^ $(CFLAGS)
 
 clean:
-	rm -f *.o test_assign1
+	rm -f *.o
