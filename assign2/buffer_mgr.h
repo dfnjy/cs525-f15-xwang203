@@ -5,7 +5,8 @@
 #include "dberror.h"
 
 // Include bool DT
-#include "dt.h"
+//#include "dt.h"
+#include <stdbool.h>
 
 // Replacement Strategies
 typedef enum ReplacementStrategy {
