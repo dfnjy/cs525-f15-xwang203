@@ -49,9 +49,9 @@ RC closePageFile (SM_FileHandle *fHandle)
     if (fail)
         return RC_FILE_HANDLE_NOT_INIT;
     
-    free(fHandle->fileName);
+    //free(fHandle->fileName);
     fHandle->fileName= NULL;
-    free(fHandle->mgmtInfo);
+    //free(fHandle->mgmtInfo);
     fHandle->mgmtInfo= NULL;
     return RC_OK;
 }
