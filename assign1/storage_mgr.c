@@ -74,8 +74,13 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
     if (fHandle->mgmtInfo==NULL)
         return RC_FILE_NOT_FOUND;
     
-    fseek(fHandle->mgmtInfo, 5+pageNum*PAGE_SIZE, SEEK_SET);
-    fread(memPage, sizeof(char), PAGE_SIZE, fHandle->mgmtInfo); //return total number of elements
+    int seekSucc = fseek(fHandle->mgmtInfo, 5+pageNum*PAGE_SIZE, SEEK_SET);
+    if(seekSucc != 0){
+        return RC_SEEK_FAILED;
+    }
+    fread(memPage, sizeof(char), PAGE_SIZE, fHandle->mgmtInfo); 
+    //return total number of elements
+    
     fHandle->curPagePos=pageNum;
     
     return RC_OK;

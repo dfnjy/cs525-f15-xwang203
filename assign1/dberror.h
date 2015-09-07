@@ -4,7 +4,7 @@
 #include "stdio.h"
 
 /* module wide constants */
-//#define PAGE_SIZE 4096
+#define PAGE_SIZE 4096
 
 /* return code definitions */
 typedef int RC;
@@ -14,6 +14,12 @@ typedef int RC;
 #define RC_FILE_HANDLE_NOT_INIT 2
 #define RC_WRITE_FAILED 3
 #define RC_READ_NON_EXISTING_PAGE 4
+
+/* Added by Yinan Zhang on 09/05/2015 */
+#define RC_READ_FAILED 100
+#define RC_SEEK_FAILED 101
+/* End of editing */
+
 
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
