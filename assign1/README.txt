@@ -6,3 +6,8 @@ When createPageFile, we first create an array of char in size of PAGE_SIZE then 
 When openPageFile, we open the file on disk, then parse the parameters and write them into memory(fHandle).
 When closePageFile, we set the pointers to fHandle to NULL after closing the file.
 When destroyPageFile, we remove the file on disk directly.
+
+When writeBlock, we use mgmtInfo and given specified pageNum to locate cursor at correct position, then write memory's content into specified page.
+When writeCurrentBlock, we use curPagePos of fHandle to get the current pageNum, then use writeBlock to write memory's content into specified page.
+When appendEmptyBlock, we use totalNumPages of fHandle to get the page after the last page of the file and use writeBlock to write momory's content into specified page. Then use rewind set cursor to the beginning of the file in order to revise the number of total pages stored at the beginning of the file. Finally recover the cursor to the end of the file. 
+When ensureCapacity, we use appendEmptyBlock iteratively append the empty page at the end of the file until the total number of pages reaches the specified capacity.
