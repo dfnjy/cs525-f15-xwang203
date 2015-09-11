@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-//max_int = 2147483647
 void initStorageManager (void){
     //blank
 }
@@ -18,7 +17,7 @@ RC createPageFile (char *fileName)
         return RC_WRITE_FAILED;
     memset(str,'\0',PAGE_SIZE); //fill a page full of '\0'
     
-    fprintf(pFile,"%10d\n",1); //write total pages=1
+    fprintf(pFile,"%d\n",1); //write total pages=1
     fwrite(str, sizeof(char), PAGE_SIZE, pFile);
     fclose(pFile);
     
@@ -70,27 +69,13 @@ RC destroyPageFile (char *fileName)
 
 RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
-    if (pageNum>=fHandle->totalNumPages || pageNum<0)
+    if (pageNum>fHandle->totalNumPages || pageNum<0)
         return RC_READ_NON_EXISTING_PAGE;
     if (fHandle->mgmtInfo==NULL)
         return RC_FILE_NOT_FOUND;
     
-    int seekSucc = fseek(fHandle->mgmtInfo, 11+pageNum*PAGE_SIZE, SEEK_SET);
-    if(seekSucc != 0){
-        return RC_SEEK_FAILED;
-    }
-    fread(memPage, sizeof(char), PAGE_SIZE, fHandle->mgmtInfo); 
-    //return total number of elements
-    int i;
-    for (i = 0; i < PAGE_SIZE; i++) {
-        if (memPage[i]!='\0')
-        {
-            i=memPage[i];
-            break;
-        }
-    }
-
-    
+    fseek(fHandle->mgmtInfo, 5+pageNum*PAGE_SIZE, SEEK_SET);
+    fread(memPage, sizeof(char), PAGE_SIZE, fHandle->mgmtInfo); //return total number of elements
     fHandle->curPagePos=pageNum;
     
     return RC_OK;
@@ -119,10 +104,10 @@ RC readLastBlock (SM_FileHandle *fHandle, SM_PageHandle memPage){
 //sizeofchar=1 sizeofint=4
 RC writeBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage)
 {
-    if (pageNum >= (fHandle->totalNumPages) || pageNum<0)
+    if (pageNum > (fHandle->totalNumPages) || pageNum<0)
         return RC_WRITE_FAILED;
     
-    int fail = fseek(fHandle->mgmtInfo, 11+pageNum*PAGE_SIZE, SEEK_SET);
+    int fail = fseek(fHandle->mgmtInfo, 5+pageNum*PAGE_SIZE, SEEK_SET);
     if (fail)
         return RC_WRITE_FAILED;
     
@@ -140,12 +125,8 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
 {
     SM_PageHandle str = (char *) calloc(PAGE_SIZE,1); //apply for a page filled with zero bytes
     //append the page
-    int temp =fHandle->curPagePos;
     
-    fHandle->curPagePos=fHandle->totalNumPages;
-    fHandle->totalNumPages+=1;
-    
-    RC return_value = writeBlock(fHandle->curPagePos, fHandle, str);
+    RC return_value = writeBlock(fHandle->totalNumPages, fHandle, str);
     //if append new, totalNumPages can be used as an offset
     if (return_value!=RC_OK)
     {
@@ -153,8 +134,8 @@ RC appendEmptyBlock (SM_FileHandle *fHandle)
         str=NULL;
         return return_value;
     }
-    
-    fHandle->curPagePos=temp;
+    fHandle->curPagePos=fHandle->totalNumPages;
+    fHandle->totalNumPages+=1;
     //change total pages in file
     rewind(fHandle->mgmtInfo);//reset file pointer
     fprintf(fHandle->mgmtInfo,"%d\n",fHandle->totalNumPages);
