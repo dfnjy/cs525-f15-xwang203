@@ -3,36 +3,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-typedef struct frame{
-    int currpage; //the corresponding page in the file
-    bool dirty;
-    int fixCount;
-    char data[PAGE_SIZE];
-    bool refbit; //true=1 false=0 clock
-    struct frame *next;
-    struct frame *prev;
-}frame;
-
-typedef struct statlist{
-    frame *fpt; //frame pointer
-    struct statlist *next;
-}statlist;
-
-typedef struct buffer{ //use as a class
-    int numFrames; // number of frames in the frame list
-    int numRead; //for readIO
-    int numWrite; //for writeIO
-    void *stratData; //sizeof(void)=8 siszeof(int)=4; malloc cheating here
-    //int pinnNum; //pinned frames
-    frame *head;
-    frame *tail;
-    frame *pointer; //special purposes;
-    statlist *stathead; //statistics functions have to follow true sequence -.-|
-}buffer;
-
 /* Custom Functions*/
 
 frame *alreadyPinned(BM_BufferPool *const bm, const PageNumber pageNum)
+/*Check if pageNum-th frame was already pinned. If so, increase fixCount.
+ Return frame pointer if found, or NULL*/
 {
     buffer *bf = bm->mgmtData;
     frame *pt = bf->head;
@@ -49,6 +24,7 @@ frame *alreadyPinned(BM_BufferPool *const bm, const PageNumber pageNum)
 }
 
 int pinThispage(BM_BufferPool *const bm, frame *pt, PageNumber pageNum)
+/*pin page pointed by pt with pageNum-th page. If do not have, create one*/
 {
     buffer *bf = bm->mgmtData;
     SM_FileHandle fHandle; //cheating: should malloc then free
@@ -71,18 +47,31 @@ int pinThispage(BM_BufferPool *const bm, frame *pt, PageNumber pageNum)
     pt->currpage = pageNum;
     pt->fixCount++;
     closePageFile(&fHandle);
+    
     return 0;
 }
 
 /* Pinning Functions*/
+
 RC pinFIFO (BM_BufferPool *const bm, BM_PageHandle *const page,
             const PageNumber pageNum, bool fromLRU)
+/*pin the first avaliable frame, then move the frame to tail. Noticed that it is circular queue.
+ If was called by LRU then no need to check pinned*/
 {
+    frame *pt;
     if (!fromLRU)
-        if (alreadyPinned(bm,pageNum)) return RC_OK;
+    {
+        pt = alreadyPinned(bm,pageNum);
+        if (pt)
+        {
+            page->pageNum = pageNum;
+            page->data = pt->data;
+            return RC_OK;
+        }
+    }
     //load into memory using FIFO
     buffer *bf = bm->mgmtData;
-    frame *pt = bf->head;
+    pt = bf->head;
     //find first avaliable frame
     bool notfind = true;
     do
@@ -119,7 +108,8 @@ RC pinFIFO (BM_BufferPool *const bm, BM_PageHandle *const page,
 }
 
 RC pinLRU (BM_BufferPool *const bm, BM_PageHandle *const page,
-            const PageNumber pageNum)
+           const PageNumber pageNum)
+/*If not pinned then same as FIFO. If pinned then move to tail.*/
 {
     frame *pt = alreadyPinned(bm,pageNum);
     if (pt)
@@ -145,8 +135,43 @@ RC pinLRU (BM_BufferPool *const bm, BM_PageHandle *const page,
 }
 
 RC pinCLOCK (BM_BufferPool *const bm, BM_PageHandle *const page,
-            const PageNumber pageNum)
+             const PageNumber pageNum)
+/*use pointer to scan. No need to reorder queue*/
 {
+    frame *pt = alreadyPinned(bm,pageNum);
+    if (pt) {
+        page->pageNum = pageNum;
+        page->data = pt->data;
+        return RC_OK;
+    }
+    buffer *bf = bm->mgmtData;
+    pt = bf->pointer->next;
+    bool notfind = true;
+    
+    while (pt!=bf->pointer)
+    {
+        if (pt->fixCount == 0)
+        {
+            if (!pt->refbit) //refbit = 0
+            {
+                notfind = false;
+                break;
+            }
+            pt->refbit = false; //on the way set all bits to 0
+        }
+        pt = pt->next;
+    };
+    
+    if (notfind)
+        return RC_IM_NO_MORE_ENTRIES; //no avaliable frame
+    
+    RC rt_value = pinThispage(bm, pt, pageNum);
+    if (rt_value!=RC_OK) return rt_value;
+    
+    bf->pointer = pt;
+    page->pageNum = pageNum;
+    page->data = pt->data;
+    
     return RC_OK;
 }
 
@@ -162,6 +187,7 @@ RC pinLRUK (BM_BufferPool *const bm, BM_PageHandle *const page,
 RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
                   const int numPages, ReplacementStrategy strategy,
                   void *stratData)
+//initialization: create page frames using circular list; init bm;
 {
     //error check
     if (numPages<=0) //input check
@@ -251,13 +277,13 @@ RC shutdownBufferPool(BM_BufferPool *const bm)
 RC forceFlushPool(BM_BufferPool *const bm)
 {
     //write all dirty pages (fix count 0) to disk
-    //pinned check
+    //do pinned check
     buffer *bf = bm->mgmtData;
     
     SM_FileHandle fHandle;
     RC rt_value = openPageFile(bm->pageFile, &fHandle);
     if (rt_value!=RC_OK) return rt_value;
-
+    
     frame *pt = bf->head;
     do
     {
@@ -293,6 +319,7 @@ RC markDirty (BM_BufferPool *const bm, BM_PageHandle *const page)
 }
 
 RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
+//fixcount--
 {
     buffer *bf = bm->mgmtData;
     frame *pt = bf->head;
@@ -305,19 +332,23 @@ RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page)
     }
     
     if (pt->fixCount > 0)
+    {
         pt->fixCount--;
+        if (pt->fixCount == 0)
+            pt->refbit = false;
+    }
     else
         return RC_READ_NON_EXISTING_PAGE;
     /*
-    //debugging
-    if (pt->dirty)
-    {
-        forcePage(bm, page);
-        pt->dirty = false;
-    }
-    pt->currpage=NO_PAGE;
-    memset(pt->data,'\0',PAGE_SIZE);
-    */
+     //debugging para
+     if (pt->dirty)
+     {
+     forcePage(bm, page);
+     pt->dirty = false;
+     }
+     pt->currpage=NO_PAGE;
+     memset(pt->data,'\0',PAGE_SIZE);
+     */
     
     return RC_OK;
 }
@@ -424,10 +455,10 @@ int getNumWriteIO (BM_BufferPool *const bm)
     return bf->numWrite;
 }
 /*
-int main()
-{
-    int *a=malloc(sizeof(char));
-    printf("%d",*a);
-    free(a);
-}
-*/
+ int main()
+ {
+ int *a=malloc(sizeof(char));
+ printf("%d",*a);
+ free(a);
+ }
+ */

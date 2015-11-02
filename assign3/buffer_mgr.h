@@ -3,17 +3,47 @@
 
 // Include return codes and methods for logging errors
 #include "dberror.h"
+#include "storage_mgr.h"
 
 // Include bool DT
-#include "dt.h"
+//#include "dt.h"
+#include <stdbool.h>
+
+//Customized
+typedef struct frame{
+    int currpage; //the corresponding page in the file
+    bool dirty;
+    int fixCount;
+    char data[PAGE_SIZE];
+    bool refbit; //true=1 false=0 for clock
+    struct frame *next;
+    struct frame *prev;
+}frame;
+
+typedef struct statlist{
+    frame *fpt; //frame pt
+    struct statlist *next;
+}statlist;
+
+typedef struct buffer{ //use as a class
+    int numFrames; // number of frames in the frame list
+    int numRead; //for readIO
+    int numWrite; //for writeIO
+    void *stratData; //sizeof(void)=8 siszeof(int)=4; malloc cheating here
+    //int pinnNum; //pinned frames
+    frame *head;
+    frame *tail;
+    frame *pointer; //special purposes;init as bfhead;clock used
+    statlist *stathead; //statistics functions have to follow true sequence -.-|
+}buffer;
 
 // Replacement Strategies
 typedef enum ReplacementStrategy {
-  RS_FIFO = 0,
-  RS_LRU = 1,
-  RS_CLOCK = 2,
-  RS_LFU = 3,
-  RS_LRU_K = 4
+    RS_FIFO = 0,
+    RS_LRU = 1,
+    RS_CLOCK = 2,
+    RS_LFU = 3,
+    RS_LRU_K = 4
 } ReplacementStrategy;
 
 // Data Types and Structures
@@ -21,29 +51,30 @@ typedef int PageNumber;
 #define NO_PAGE -1
 
 typedef struct BM_BufferPool {
-  char *pageFile;
-  int numPages;
-  ReplacementStrategy strategy;
-  void *mgmtData; // use this one to store the bookkeeping info your buffer 
-                  // manager needs for a buffer pool
+    char *pageFile;
+    int numPages;
+    ReplacementStrategy strategy;
+    SM_FileHandle fH;
+    void *mgmtData; // use this one to store the bookkeeping info your buffer
+    // manager needs for a buffer pool
 } BM_BufferPool;
 
 typedef struct BM_PageHandle {
-  PageNumber pageNum;
-  char *data;
+    PageNumber pageNum;
+    char *data;
 } BM_PageHandle;
 
 // convenience macros
 #define MAKE_POOL()					\
-  ((BM_BufferPool *) malloc (sizeof(BM_BufferPool)))
+((BM_BufferPool *) malloc (sizeof(BM_BufferPool)))
 
 #define MAKE_PAGE_HANDLE()				\
-  ((BM_PageHandle *) malloc (sizeof(BM_PageHandle)))
+((BM_PageHandle *) malloc (sizeof(BM_PageHandle)))
 
 // Buffer Manager Interface Pool Handling
-RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName, 
-		  const int numPages, ReplacementStrategy strategy, 
-		  void *stratData);
+RC initBufferPool(BM_BufferPool *const bm, const char *const pageFileName,
+                  const int numPages, ReplacementStrategy strategy,
+                  void *stratData);
 RC shutdownBufferPool(BM_BufferPool *const bm);
 RC forceFlushPool(BM_BufferPool *const bm);
 
@@ -51,8 +82,8 @@ RC forceFlushPool(BM_BufferPool *const bm);
 RC markDirty (BM_BufferPool *const bm, BM_PageHandle *const page);
 RC unpinPage (BM_BufferPool *const bm, BM_PageHandle *const page);
 RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page);
-RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page, 
-	    const PageNumber pageNum);
+RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
+            const PageNumber pageNum);
 
 // Statistics Interface
 PageNumber *getFrameContents (BM_BufferPool *const bm);

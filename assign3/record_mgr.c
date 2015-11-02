@@ -50,19 +50,16 @@ RC serializeFirstPage(Schema *schema, RM_tableData_mgmtData *mgm){
     first -= 4*sizeof(int);
     strcat(first, serializeSchema(schema));
     TEST_CHECK(createPageFile(tableData->name));
-    //if((rc = openPageFile(name, mgm->bp->mgmtData)) != RC_OK) return rc;
-    if(mgm->bp == NULL){
+    //if(mgm->bp == NULL){
         mgm->bp = MAKE_POOL();
-        mgm->bp->mgmtData = (SM_FileHandle *) malloc (sizeof(SM_FileHandle));
-    }
-    TEST_CHECK(openPageFile(tableData->name, mgm->bp->mgmtData));
+        mgm->bp->mgmtData = malloc(sizeof(buffer));
+    //}
+    TEST_CHECK(openPageFile(tableData->name, &mgm->bp->fH));
     //write to the first page
-    if(0 == getBlockPos(mgm->bp->mgmtData)){
-        //rc = writeCurrentBlock(mgm->bp->mgmtData, serializeFirstPage(schema));
-        TEST_CHECK(writeCurrentBlock(mgm->bp->mgmtData, first));
+    if(0 == getBlockPos(&mgm->bp->fH)){
+        TEST_CHECK(writeCurrentBlock(&mgm->bp->fH, first));
     }else{
-        //rc = writeBlock(0, mgm->bp->mgmtData, serializeFirstPage(schema));
-        TEST_CHECK(writeBlock(0, mgm->bp->mgmtData, first));
+        TEST_CHECK(writeBlock(0, &mgm->bp->fH, first));
     }
     free(first);
     first = NULL;
@@ -86,14 +83,16 @@ RC serialRecord(Record *record){
     BM_PageHandle *page = (BM_PageHandle *)malloc(sizeof(BM_PageHandle));
     page->data = (char *)malloc(PAGE_SIZE);
     TEST_CHECK(pinPage(bm, page, pageNum));
-    page->data += (getRecordSize(tableData->schema))*slot;
+    TEST_CHECK(markDirty(bm, page));
+    //page->data += (getRecordSize(tableData->schema))*slot;
     //record: header: TID and tome stone
     //record: content
 
     memcpy(page->data, record->data, getRecordSize(tableData->schema));
+    
     //page->data = record->data;
-    page->data -= (getRecordSize(tableData->schema))*slot;
-    TEST_CHECK(markDirty(bm, page));
+    //page->data -= (getRecordSize(tableData->schema))*slot;
+
     TEST_CHECK(unpinPage(bm, page));
     TEST_CHECK(forcePage(bm, page));
     return RC_OK;
@@ -142,13 +141,13 @@ RC createTable (char *name, Schema *schema)
     //use buffer manager function to create the file
     //precaution: the first page must be large enough to contain the content of
     //schema and other information
-    if(sizeof(serializeSchema(schema)) + 4*sizeof(int) > PAGE_SIZE) return RC_IM_N_TO_LAGE;
+    if(sizeof(serializeSchema(schema)) + 4*sizeof(int) > PAGE_SIZE)
+        return RC_IM_N_TO_LAGE;
     //write to the first Page
     //mgm->firstPage =
     TEST_CHECK(serializeFirstPage(schema, mgm));
     mgm->numPages = 0;
     tableData->mgmtData = mgm;
-    //rel = tableData;
     return RC_OK;
 }//createTable
 
@@ -159,14 +158,16 @@ RC openTable (RM_TableData *rel, char *name)
         return RC_RM_UNKOWN_DATATYPE;
     }
     TEST_CHECK(initBufferPool(((RM_tableData_mgmtData *)tableData->mgmtData)->bp, name, 10000, RS_CLOCK, NULL));
-    rel = tableData;
+    *rel = *tableData;
     return RC_OK;
 }
 
 RC closeTable (RM_TableData *rel)
 {
     if(tableData == NULL) return RC_RM_UNKOWN_DATATYPE;
-    TEST_CHECK(closePageFile((SM_FileHandle *)(((RM_tableData_mgmtData *)tableData->mgmtData)->bp->mgmtData)));
+    RM_tableData_mgmtData * temp = (RM_tableData_mgmtData *)tableData->mgmtData;
+    SM_FileHandle *fHandle = &temp->bp->fH;
+    TEST_CHECK(closePageFile(fHandle));
     rel->name = NULL;
     return RC_OK;
 }
@@ -200,32 +201,21 @@ RC insertRecord (RM_TableData *rel, Record *record){
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
     //calculate the number of tuples in one page.
     //one tuple: TID, tome stone, and record content
-    //temp->actualRecordSize = sizeof(record->data);
-    temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema);//(temp->actualRecordSize);
+    temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema);
     //if the file is new
     //else if the record need to be inserted into free space
     temp->numRecords += 1;
     temp->numInsert += 1;
     int slot = (temp->numInsert)%(temp->numRecordsPerPage);
-    switch (slot){
-                case 0: {RID id_=record->id;
-                    id_.slot = temp->numRecordsPerPage - 1;
-                    record->id = id_;
-                }
-                    break;
-                case 1: temp->numPages += 1; break;
-                default: {RID id_ = record->id;
-                    id_.slot = slot - 1;
-                    record->id = id_;
-                }
-                            }
-    RID id_ = record->id;
-    id_.page = temp->numPages;
-    record->id = id_;
-    RC check_serial = serialRecord(record);
-    TEST_CHECK(check_serial);
+    if(slot == 1) temp->numPages += 1;
+    
+    record->id.page = temp->numPages;
+    if(slot == 0) record->id.slot = temp->numRecordsPerPage - 1;
+    else record->id.slot = slot - 1;
+    
+    TEST_CHECK(serialRecord(record));
     tableData->mgmtData = temp;
-    rel = tableData;
+    *rel = *tableData;
     return RC_OK;
 }
 
@@ -234,32 +224,41 @@ RC deleteRecord (RM_TableData *rel, RID id){
         {
             return -1;
                 }
-    //int pageNum = id.page;
-    //int slot = id.slot;
-    RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
+    int pageNum = id.page;
+    int slot = id.slot;
+    
+    RM_tableData_mgmtData *temp = ((RM_tableData_mgmtData *)tableData->mgmtData);
+    //BM_BufferPool *bm = temp->bp;
     BM_PageHandle *page = (BM_PageHandle *)malloc(sizeof(BM_PageHandle));
     page->data = (char *)malloc(PAGE_SIZE);
-    //rc作用？
-    //int rc = RC_OK;
+    
     //printf("%p\n\n", &page);
-    RC check_pin = pinPage(temp->bp, page, id.page);
-    TEST_CHECK(check_pin);
-    page->data += (getRecordSize(tableData->schema))*(id.slot);
+    TEST_CHECK(pinPage(temp->bp, page, pageNum));
+    
+    page->data += (getRecordSize(tableData->schema))*slot;
+    
+    
     //record: header: TID and tome stone
     //record: content
     //
-    id.slot = -1;
+    slot = -1;
+    // memcpy(page->data, &pageNum, sizeof(int));
+    // page->data += sizeof(int);
+    // memcpy(page->data, &slot, sizeof(int));
+    // page->data += sizeof(int);
     memset(page->data, 0, getRecordSize(tableData->schema));
-    page->data -= (getRecordSize(tableData->schema))*(id.slot);
+    
+    
+    page->data -= (getRecordSize(tableData->schema))*slot;
+    
+    TEST_CHECK(markDirty(temp->bp, page));
+    TEST_CHECK(unpinPage(temp->bp, page));
+    TEST_CHECK(forcePage(temp->bp, page));
+    
     temp->numRecords -= 1;
-    RC check_markDirty = markDirty(temp->bp, page);
-    RC check_unpin = unpinPage(temp->bp, page);
-    RC check_forcePage = forcePage(temp->bp, page);
-    TEST_CHECK(check_markDirty);
-    TEST_CHECK(check_unpin);
-    TEST_CHECK(check_forcePage);
+    
     tableData->mgmtData = temp;
-    rel = tableData;
+    *rel = *tableData;
     return RC_OK;
 }
 
@@ -275,35 +274,29 @@ RC updateRecord (RM_TableData *rel, Record *record){
         {
             return -1;
         }
-    RC check_serial = serialRecord(record);
-    TEST_CHECK(check_serial);
-    rel = tableData;
+    TEST_CHECK(serialRecord(record));
+    *rel = *tableData;
     return RC_OK;
 }
 
 
 
 RC getRecord (RM_TableData *rel, RID id, Record *record){
-    if(tableData == NULL)
-        {
-            return -1;
-                }
-    if(record == NULL)
-        {
-            return -1;
-        }
+    if ((tableData == NULL)||(record == NULL))
+        return RC_RM_UNKOWN_DATATYPE;
+    int pageNum = id.page;
+    int slot = id.slot;
     record->id = id;
+    
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
-    //if(temp->bp == NULL) return RC_RM_NO_TABLE_MGMT_DATA;
+
     BM_BufferPool *bm = temp->bp;
     BM_PageHandle *page = MAKE_PAGE_HANDLE();
-    //rc的作用？
-    //int rc = RC_OK;
-    RC check_pin = pinPage(bm, page, id.page);
-    page->data += (getRecordSize(tableData->schema))*(id.slot);
+
+    TEST_CHECK(pinPage(bm, page, pageNum));
+    page->data += (getRecordSize(tableData->schema))*slot;
+    
     memcpy(record->data, page->data, getRecordSize(tableData->schema));
-    //record->data = page->data;
-    TEST_CHECK(check_pin);
     return RC_OK;
 }
 
@@ -458,15 +451,15 @@ RC freeSchema (Schema *schema)
     return RC_OK;
 }
 
-
+/* yinan zhang
 // dealing with records and attribute values
 RC createRecord (Record **record, Schema *schema)
 {
     if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
-    Record *r = (Record *) malloc(sizeof(Record));
+    *record = MAKE_RECORD();
     (*record)->data = (char *)malloc(getRecordSize(schema));
-    r->id.page = -1;
-    r->id.slot = -1;
+    (*record)->id.page = -1;
+    (*record)->id.slot = -1;
     return RC_OK;
 }
 RC freeRecord (Record *record){
@@ -477,13 +470,13 @@ RC freeRecord (Record *record){
     return RC_OK;
 }
 
-/*
+ *
  * int getoffset(Schema *schema, int attrNum):
  *
  * input: schema, and number of attribute in one record
  * output: integer of the offset of the attribute
  * function: return the offset of the attribute in the record data
- */
+ *
 int getOffset(Schema *schema, int attrNum){
     int i, offSet = 0;
     for (i = 0; i < schema->numAttr; i++)
@@ -500,6 +493,7 @@ int getOffset(Schema *schema, int attrNum){
             }
     return offSet;
 }
+
 RC getAttr (Record *record, Schema *schema, int attrNum, Value **value)
 {
     if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
@@ -534,8 +528,6 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value)
     return RC_OK;
 }
 
-
-
 RC setAttr (Record *record, Schema *schema, int attrNum, Value *value)
 {
     if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
@@ -566,6 +558,186 @@ RC setAttr (Record *record, Schema *schema, int attrNum, Value *value)
     }
     recordData -= offSet;
     record->data = recordData;
+    return RC_OK;
+}
+ */
+
+// dealing with records and attribute values
+/*
+ * RC createRecord (Record **record, Schema *schema):
+ *
+ * input: record which contain the new record needed to be returned, schema
+ * output: RC, code for the result
+ * function: create the record with the information of schema
+ */
+RC createRecord (Record **record, Schema *schema){
+    
+    if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
+    
+    *record = MAKE_RECORD();
+    (*record)->data = (char *)malloc(getRecordSize(schema));
+    
+    (*record)->id.page = -1;
+    (*record)->id.slot = -1;
+    
+    return RC_OK;
+}
+
+
+/*
+ * RC freeRecord (Record *record):
+ *
+ * input: record need to be free
+ * output: RC, code for the result
+ * function: free the space of the record
+ */
+RC freeRecord (Record *record){
+    
+    if(record == NULL) return -1;
+    
+    
+    free(record->data);
+    record->data = NULL;
+    
+    
+    free(record);
+    record = NULL;
+    
+    return RC_OK;
+}
+
+
+
+/*
+ * int getoffset(Schema *schema, int attrNum):
+ *
+ * input: schema, and number of attribute in one record
+ * output: integer of the offset of the attribute
+ * function: return the offset of the attribute in the record data
+ */
+int getoffset(Schema *schema, int attrNum){
+    
+    int i, off = 0;
+    for(i = 0; i < attrNum; i++){
+        switch(schema->dataTypes[i]){
+            case DT_INT:
+                off += sizeof(int);
+                break;
+            case DT_STRING:
+                off += schema->typeLength[i];
+                break;
+            case DT_FLOAT:
+                off += sizeof(float);
+                break;
+            case DT_BOOL:
+                off += sizeof(bool);
+                break;
+            default:
+                return RC_RM_UNKOWN_DATATYPE;
+        }
+    }
+    return off;
+}
+
+/*
+ * RC getAttr (Record *record, Schema *schema, int attrNum, Value **value):
+ *
+ * input: record, schema, number of attribute need to be return, value
+ * output: RC, code for the result
+ * function: find the right value of the attribute and put it into value
+ */
+RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
+    
+    if(record == NULL) return -1;
+    if(schema == NULL) return -1;
+    
+    if(attrNum < 0 || attrNum >= schema->numAttr) return -1;
+    
+    char *recordData = record->data;
+    int off = 0;
+    int i = 0;
+    value[0] = MAKE_CVALUE();
+    
+    off = getoffset(schema, attrNum);
+    //printf("%d\t%d\n", schema->numAttr, attrNum);
+    //temp->dt = ;
+    recordData += off;
+    switch(schema->dataTypes[attrNum]){
+        case DT_INT:
+            //printf("abc1\n");
+            memcpy(&(value[0]->v.intV), recordData, sizeof(int));
+            //temp->v.intV = tempInt;
+            //printf("abcc\n");
+            break;
+        case DT_STRING:
+            //printf("abc2\n");
+            value[0]->v.stringV = (char *)malloc(sizeof(schema->typeLength[attrNum]));
+            memcpy((value[0]->v.stringV), recordData, sizeof(schema->typeLength[attrNum]));
+            break;
+        case DT_FLOAT:
+            //printf("abc3\n");
+            memcpy(&(value[0]->v.floatV), recordData, sizeof(float));
+            break;
+        case DT_BOOL:
+            //printf("abc4\n");
+            memcpy(&(value[0]->v.boolV), recordData, sizeof(bool));
+            break;
+            
+        default:
+            return RC_RM_UNKOWN_DATATYPE;
+            
+    }
+    
+    /*value[0] = (Value *)malloc(sizeof(Value));
+     value[0] = temp;
+     printf("%p\n", &(*value));*/
+    value[0]->dt = schema->dataTypes[attrNum];
+    recordData -= off;
+    return RC_OK;
+}
+
+/*
+ * RC setAttr (Record *record, Schema *schema, int attrNum, Value *value):
+ *
+ * input: record, schema, number of attribute need to be return, value
+ * output: RC, code for the result
+ * function: find the right position of the attribute and set it with new value
+ */
+RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
+    
+    if(record == NULL) return -1;
+    if(schema == NULL) return -1;
+    
+    if(attrNum < 0 || attrNum >= schema->numAttr) return -1;
+    
+    char *recordData = record->data;
+    int off = 0;
+    
+    off = getoffset(schema, attrNum);
+    
+    recordData += off;
+    
+    schema->dataTypes[attrNum] = (value)->dt;
+    switch((value)->dt){
+        case DT_INT:
+            memcpy(recordData, &((value)->v.intV), sizeof(int));
+            //sprintf(recordData);
+            break;
+        case DT_STRING:
+            memcpy(recordData, ((value)->v.stringV), sizeof(schema->typeLength[attrNum]));
+            break;
+        case DT_FLOAT:
+            memcpy(recordData, &((value)->v.floatV), sizeof(float));
+            break;
+        case DT_BOOL:
+            memcpy(recordData, &((value)->v.boolV), sizeof(bool));
+            break;
+        default:
+            return RC_RM_UNKOWN_DATATYPE;
+    }
+    recordData -= off;
+    record->data = recordData;
+    
     return RC_OK;
 }
 
