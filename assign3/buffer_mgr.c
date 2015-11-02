@@ -71,7 +71,6 @@ int pinThispage(BM_BufferPool *const bm, frame *pt, PageNumber pageNum)
     pt->currpage = pageNum;
     pt->fixCount++;
     closePageFile(&fHandle);
-    
     return 0;
 }
 
@@ -349,7 +348,6 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page,
             const PageNumber pageNum)
 {
     if (pageNum<0) return RC_IM_KEY_NOT_FOUND;
-    
     
     switch (bm->strategy)
     {

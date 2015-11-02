@@ -1,10 +1,10 @@
+/* module wide constants */
+#define PAGE_SIZE 4096
+
 #ifndef DBERROR_H
 #define DBERROR_H
 
 #include "stdio.h"
-
-/* module wide constants */
-#define PAGE_SIZE 4096
 
 /* return code definitions */
 typedef int RC;
@@ -15,6 +15,11 @@ typedef int RC;
 #define RC_WRITE_FAILED 3
 #define RC_READ_NON_EXISTING_PAGE 4
 
+/* Added by Yinan Zhang on 09/05/2015 */
+#define RC_READ_FAILED 100
+#define RC_SEEK_FAILED 101
+/* End of editing */
+
 #define RC_RM_COMPARE_VALUE_OF_DIFFERENT_DATATYPE 200
 #define RC_RM_EXPR_RESULT_IS_NOT_BOOLEAN 201
 #define RC_RM_BOOLEAN_EXPR_ARG_IS_NOT_BOOLEAN 202
@@ -22,10 +27,17 @@ typedef int RC;
 #define RC_RM_NO_PRINT_FOR_DATATYPE 204
 #define RC_RM_UNKOWN_DATATYPE 205
 
+/* Added by Yinan Zhang on 11/01/2015 */
+#define RC_RM_SCHEMA_NOT_FOUND 206
+#define RC_RM_WRONG_ATTRNUM 207
+/* End of editing */
+
+
 #define RC_IM_KEY_NOT_FOUND 300
 #define RC_IM_KEY_ALREADY_EXISTS 301
 #define RC_IM_N_TO_LAGE 302
 #define RC_IM_NO_MORE_ENTRIES 303
+
 
 /* holder for error messages */
 extern char *RC_message;
