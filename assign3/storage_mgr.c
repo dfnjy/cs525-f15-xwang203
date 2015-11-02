@@ -50,9 +50,9 @@ RC closePageFile (SM_FileHandle *fHandle)
         return RC_FILE_HANDLE_NOT_INIT;
     
     //free(fHandle->fileName);
-    fHandle->fileName= NULL;
+    //fHandle->fileName= NULL;
     //free(fHandle->mgmtInfo);
-    fHandle->mgmtInfo= NULL;
+    //fHandle->mgmtInfo= NULL;
     return RC_OK;
 }
 

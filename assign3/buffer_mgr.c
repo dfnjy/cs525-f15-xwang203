@@ -27,26 +27,26 @@ int pinThispage(BM_BufferPool *const bm, frame *pt, PageNumber pageNum)
 /*pin page pointed by pt with pageNum-th page. If do not have, create one*/
 {
     buffer *bf = bm->mgmtData;
-    SM_FileHandle fHandle; //cheating: should malloc then free
-    RC rt_value = openPageFile(bm->pageFile, &fHandle);
+    //cheating: should malloc then free
+    RC rt_value = openPageFile(bm->pageFile, &bm->fH);
     if (rt_value!=RC_OK) return rt_value;
-    rt_value = ensureCapacity(pageNum, &fHandle); //你不说谁知道啊
+    rt_value = ensureCapacity(pageNum, &bm->fH); //你不说谁知道啊
     if (rt_value!=RC_OK) return rt_value;
     
     if (pt->dirty)
     {
-        rt_value = writeBlock(pt->currpage, &fHandle, pt->data);
+        rt_value = writeBlock(pt->currpage, &bm->fH, pt->data);
         if (rt_value!=RC_OK) return rt_value;
         pt->dirty = false;
         bf->numWrite++;
     }
     
-    rt_value = readBlock(pageNum, &fHandle, pt->data);
+    rt_value = readBlock(pageNum, &bm->fH, pt->data);
     if (rt_value!=RC_OK) return rt_value;
     bf->numRead++;
     pt->currpage = pageNum;
     pt->fixCount++;
-    closePageFile(&fHandle);
+    closePageFile(&bm->fH);
     
     return 0;
 }
@@ -280,8 +280,8 @@ RC forceFlushPool(BM_BufferPool *const bm)
     //do pinned check
     buffer *bf = bm->mgmtData;
     
-    SM_FileHandle fHandle;
-    RC rt_value = openPageFile(bm->pageFile, &fHandle);
+   
+    RC rt_value = openPageFile(bm->pageFile, &bm->fH);
     if (rt_value!=RC_OK) return rt_value;
     
     frame *pt = bf->head;
@@ -289,7 +289,7 @@ RC forceFlushPool(BM_BufferPool *const bm)
     {
         if (pt->dirty)
         {
-            rt_value = writeBlock(pt->currpage, &fHandle, pt->data);
+            rt_value = writeBlock(pt->currpage, &bm->fH, pt->data);
             if (rt_value!=RC_OK) return rt_value;
             pt->dirty = false;
             bf->numWrite++;
@@ -297,7 +297,7 @@ RC forceFlushPool(BM_BufferPool *const bm)
         pt = pt->next;
     }while (pt!=bf->head);
     
-    closePageFile(&fHandle);
+    closePageFile(&bm->fH);
     return RC_OK;
 }
 
@@ -357,21 +357,20 @@ RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page)
 {
     //current frame2file
     buffer *bf = bm->mgmtData;
-    SM_FileHandle fHandle;
     RC rt_value;
     
-    rt_value = openPageFile(bm->pageFile, &fHandle);
+    rt_value = openPageFile(bm->pageFile, &bm->fH);
     if (rt_value!=RC_OK) return RC_FILE_NOT_FOUND;
     
-    rt_value = writeBlock(page->pageNum, &fHandle, page->data);
+    rt_value = writeBlock(page->pageNum, &bm->fH, page->data);
     if (rt_value!=RC_OK)
     {
-        closePageFile(&fHandle);
+        closePageFile(&bm->fH);
         return RC_FILE_NOT_FOUND;
     }
     
     bf->numWrite++;
-    closePageFile(&fHandle);
+    closePageFile(&bm->fH);
     return RC_OK;
 }
 

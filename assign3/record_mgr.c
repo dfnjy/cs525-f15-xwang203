@@ -82,17 +82,20 @@ RC serialRecord(Record *record){
     BM_BufferPool *bm = temp->bp;
     BM_PageHandle *page = (BM_PageHandle *)malloc(sizeof(BM_PageHandle));
     page->data = (char *)malloc(PAGE_SIZE);
+    
     TEST_CHECK(pinPage(bm, page, pageNum));
-    TEST_CHECK(markDirty(bm, page));
-    //page->data += (getRecordSize(tableData->schema))*slot;
+    
+    page->data += (getRecordSize(tableData->schema))*slot;
     //record: header: TID and tome stone
     //record: content
-
+    
+    
     memcpy(page->data, record->data, getRecordSize(tableData->schema));
     
     //page->data = record->data;
-    //page->data -= (getRecordSize(tableData->schema))*slot;
-
+    page->data -= (getRecordSize(tableData->schema))*slot;
+    
+    TEST_CHECK(markDirty(bm, page));
     TEST_CHECK(unpinPage(bm, page));
     TEST_CHECK(forcePage(bm, page));
     return RC_OK;
@@ -166,8 +169,7 @@ RC closeTable (RM_TableData *rel)
 {
     if(tableData == NULL) return RC_RM_UNKOWN_DATATYPE;
     RM_tableData_mgmtData * temp = (RM_tableData_mgmtData *)tableData->mgmtData;
-    SM_FileHandle *fHandle = &temp->bp->fH;
-    TEST_CHECK(closePageFile(fHandle));
+    TEST_CHECK(shutdownBufferPool(temp->bp));
     rel->name = NULL;
     return RC_OK;
 }
@@ -655,7 +657,6 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
     
     char *recordData = record->data;
     int off = 0;
-    int i = 0;
     value[0] = MAKE_CVALUE();
     
     off = getoffset(schema, attrNum);
@@ -736,7 +737,7 @@ RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
             return RC_RM_UNKOWN_DATATYPE;
     }
     recordData -= off;
-    record->data = recordData;
+    //record->data = recordData;
     
     return RC_OK;
 }
