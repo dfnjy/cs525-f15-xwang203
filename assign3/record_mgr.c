@@ -5,6 +5,7 @@
 #include "buffer_mgr.h"
 #include "storage_mgr.h"
 #include "test_helper.h"
+//#include "rm_serializer.c"
 
 #define MAKE_CVALUE()            \
 ((Value *) malloc (sizeof(Value)))
@@ -344,6 +345,12 @@ RC getRecord (RM_TableData *rel, RID id, Record *record){
     page->data += (getRecordSize(tableData->schema))*slot;
     
     memcpy(record->data, page->data, getRecordSize(tableData->schema));
+    rc = unpinPage(bm, page);
+    if (rc != RC_OK)
+         {
+            return rc;
+         }
+
     return RC_OK;
 }
 
@@ -523,34 +530,8 @@ RC freeRecord (Record *record){
 
 
 
-int getoffset(Schema *schema, int attrNum){
-    
-    int i, off = 0;
-    for(i = 0; i < attrNum; i++){
-        switch(schema->dataTypes[i]){
-            case DT_INT:
-                off += sizeof(int);
-                break;
-            case DT_STRING:
-                off += schema->typeLength[i];
-                break;
-            case DT_FLOAT:
-                off += sizeof(float);
-                break;
-            case DT_BOOL:
-                off += sizeof(bool);
-                break;
-            default:
-                return RC_RM_UNKOWN_DATATYPE;
-        }
-    }
-    return off;
-}
-
-
-
 RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
-    
+    RC rc;
     if(record == NULL) return -1;
     if(schema == NULL) return -1;
     
@@ -560,7 +541,7 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
     int off = 0;
     value[0] = ((Value *) malloc (sizeof(Value)));
     
-    off = getoffset(schema, attrNum);
+    rc = attrOffset(schema, attrNum, &off);
     recordData += off;
     switch(schema->dataTypes[attrNum]){
         case DT_INT:
@@ -590,7 +571,7 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
 
 
 RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
-    
+    RC rc;
     if(record == NULL) return -1;
     if(schema == NULL) return -1;
     
@@ -599,8 +580,7 @@ RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
     char *recordData = record->data;
     int off = 0;
     
-    off = getoffset(schema, attrNum);
-    
+    rc = attrOffset(schema, attrNum, &off);
     recordData += off;
     
     schema->dataTypes[attrNum] = (value)->dt;
