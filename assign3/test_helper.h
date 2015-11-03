@@ -26,11 +26,15 @@ extern char *testName;
   } while(0);
 
 // check whether two strings are equal
+
 #define ASSERT_EQUALS_STRING(expected,real,message)			\
   do {									\
     if (strcmp((expected),(real)) != 0)					\
       {									\
 	printf("[%s-%s-L%i-%s] FAILED: expected <%s> but was <%s>: %s\n",TEST_INFO, expected, real, message); \
+    for (int a=0;a<strlen(expected);a++) printf("%i",expected[a]);\
+    printf("\n");\
+    for (int a=0;a<strlen(real);a++) printf("%i",real[a]);\
 	exit(1);							\
       }									\
     printf("[%s-%s-L%i-%s] OK: expected <%s> and was <%s>: %s\n",TEST_INFO, expected, real, message); \
@@ -57,7 +61,6 @@ extern char *testName;
       }									\
     printf("[%s-%s-L%i-%s] OK: expected true: %s\n",TEST_INFO, message); \
   } while(0)
-
 
 // check that a method returns an error code
 #define ASSERT_ERROR(expected,message)		\

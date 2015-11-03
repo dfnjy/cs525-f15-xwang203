@@ -37,35 +37,6 @@ RM_TableData *tableData = NULL;
 
 //--------------------Customized
 
-RC serializeFirstPage(Schema *schema, RM_tableData_mgmtData *mgm){
-    char *first = (char *)malloc(PAGE_SIZE);
-    memcpy(first, &mgm->numPages, sizeof(int));
-    first += sizeof(int);
-    memcpy(first, &mgm->numRecords, sizeof(int));
-    first += sizeof(int);
-    memcpy(first, &mgm->numRecordsPerPage, sizeof(int));
-    first += sizeof(int);
-    memcpy(first, &mgm->numInsert, sizeof(int));
-    first += sizeof(int);
-    first -= 4*sizeof(int);
-    strcat(first, serializeSchema(schema));
-    TEST_CHECK(createPageFile(tableData->name));
-    //if(mgm->bp == NULL){
-        mgm->bp = MAKE_POOL();
-        mgm->bp->mgmtData = malloc(sizeof(buffer));
-    //}
-    TEST_CHECK(openPageFile(tableData->name, &mgm->bp->fH));
-    //write to the first page
-    if(0 == getBlockPos(&mgm->bp->fH)){
-        TEST_CHECK(writeCurrentBlock(&mgm->bp->fH, first));
-    }else{
-        TEST_CHECK(writeBlock(0, &mgm->bp->fH, first));
-    }
-    free(first);
-    first = NULL;
-    return RC_OK;
-}
-
 /*
  * RC serialRecord(Record *record):
  *
@@ -76,6 +47,8 @@ RC serializeFirstPage(Schema *schema, RM_tableData_mgmtData *mgm){
 
 RC serialRecord(Record *record){
     if(record == NULL) return RC_RM_UNKOWN_DATATYPE;
+    
+    RC rc;
     int pageNum = record->id.page;
     int slot = record->id.slot;
     RM_tableData_mgmtData *temp = ((RM_tableData_mgmtData *)tableData->mgmtData);
@@ -83,7 +56,9 @@ RC serialRecord(Record *record){
     BM_PageHandle *page = (BM_PageHandle *)malloc(sizeof(BM_PageHandle));
     page->data = (char *)malloc(PAGE_SIZE);
     
-    TEST_CHECK(pinPage(bm, page, pageNum));
+    rc =pinPage(bm, page, pageNum);
+    if (rc!=RC_OK)
+        return rc;
     
     page->data += (getRecordSize(tableData->schema))*slot;
     //record: header: TID and tome stone
@@ -138,17 +113,36 @@ RC createTable (char *name, Schema *schema)
     mgm->numRecords = 0;
     mgm->numRecordsPerPage = 0;
     mgm->numInsert = 0;
-    //mgm->actualRecordSize = 0;
-    //put the schema into the page-0 of the file
-    //page-0 contains the header of table
-    //use buffer manager function to create the file
-    //precaution: the first page must be large enough to contain the content of
-    //schema and other information
+    
+    //put in page 0
     if(sizeof(serializeSchema(schema)) + 4*sizeof(int) > PAGE_SIZE)
         return RC_IM_N_TO_LAGE;
-    //write to the first Page
-    //mgm->firstPage =
-    TEST_CHECK(serializeFirstPage(schema, mgm));
+
+    char *firstPage = (char *)malloc(PAGE_SIZE);
+    memcpy(firstPage, &mgm->numPages, sizeof(int));
+    firstPage += sizeof(int);
+    memcpy(firstPage, &mgm->numRecords, sizeof(int));
+    firstPage += sizeof(int);
+    memcpy(firstPage, &mgm->numRecordsPerPage, sizeof(int));
+    firstPage += sizeof(int);
+    memcpy(firstPage, &mgm->numInsert, sizeof(int));
+    firstPage += sizeof(int);
+    //backtracking
+    firstPage -= 4*sizeof(int);
+    
+    strcat(firstPage, serializeSchema(schema));
+    TEST_CHECK(createPageFile(tableData->name));
+    mgm->bp = MAKE_POOL();
+    mgm->bp->mgmtData = malloc(sizeof(buffer));
+    TEST_CHECK(openPageFile(tableData->name, &mgm->bp->fH));
+    if(0 == getBlockPos(&mgm->bp->fH)){
+        TEST_CHECK(writeCurrentBlock(&mgm->bp->fH, firstPage));
+    }else{
+        TEST_CHECK(writeBlock(0, &mgm->bp->fH, firstPage));
+    }
+    free(firstPage);
+    firstPage = NULL;
+    
     mgm->numPages = 0;
     tableData->mgmtData = mgm;
     return RC_OK;
@@ -203,7 +197,7 @@ RC insertRecord (RM_TableData *rel, Record *record){
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
     //calculate the number of tuples in one page.
     //one tuple: TID, tome stone, and record content
-    temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema);
+    temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema)-1;
     //if the file is new
     //else if the record need to be inserted into free space
     temp->numRecords += 1;
@@ -326,7 +320,7 @@ RC next (RM_ScanHandle *scan, Record *record){
     RM_tableData_mgmtData *mgmTable = (RM_tableData_mgmtData *)tableData->mgmtData;
     //printf("%d\n", mgm->numScan);
     //printf("%d\n", mgmTable->numRecords);
-    Value *res = MAKE_CVALUE();
+    Value *res = ((Value *) malloc (sizeof(Value)));
     //rec->data = (char *)malloc(getRecordSize(tableData->schema));
     res->v.boolV = FALSE;
     while(!res->v.boolV){
@@ -657,7 +651,7 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
     
     char *recordData = record->data;
     int off = 0;
-    value[0] = MAKE_CVALUE();
+    value[0] = ((Value *) malloc (sizeof(Value)));
     
     off = getoffset(schema, attrNum);
     //printf("%d\t%d\n", schema->numAttr, attrNum);
