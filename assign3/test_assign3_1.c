@@ -73,7 +73,7 @@ char *testName;
 
 // main method
 int 
-main (void) 
+main (void)
 {
   testName = "";
 

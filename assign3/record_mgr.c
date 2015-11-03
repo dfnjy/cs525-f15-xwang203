@@ -117,7 +117,7 @@ RC createTable (char *name, Schema *schema)
     //put in page 0
     if(sizeof(serializeSchema(schema)) + 4*sizeof(int) > PAGE_SIZE)
         return RC_IM_N_TO_LAGE;
-
+    
     char *firstPage = (char *)malloc(PAGE_SIZE);
     memcpy(firstPage, &mgm->numPages, sizeof(int));
     firstPage += sizeof(int);
@@ -186,18 +186,18 @@ int getNumTuples (RM_TableData *rel)
 
 RC insertRecord (RM_TableData *rel, Record *record){
     if(rel == NULL)
-        {
-            return -1;
-        }
+    {
+        return -1;
+    }
     //if(tableData->mgmtData == NULL) return RC_RM_NO_TABLE_MGMT_DATA;
     if(record == NULL)
-        {
-            return -1;
-        }
+    {
+        return -1;
+    }
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
     //calculate the number of tuples in one page.
     //one tuple: TID, tome stone, and record content
-    temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema)-1;
+    temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema);
     //if the file is new
     //else if the record need to be inserted into free space
     temp->numRecords += 1;
@@ -217,9 +217,9 @@ RC insertRecord (RM_TableData *rel, Record *record){
 
 RC deleteRecord (RM_TableData *rel, RID id){
     if(rel == NULL)
-        {
-            return -1;
-                }
+    {
+        return -1;
+    }
     int pageNum = id.page;
     int slot = id.slot;
     
@@ -262,14 +262,14 @@ RC deleteRecord (RM_TableData *rel, RID id){
 
 RC updateRecord (RM_TableData *rel, Record *record){
     if(rel == NULL)
-        {
-            return -1;
-        }
+    {
+        return -1;
+    }
     //if(rel->mgmtData == NULL) return RC_RM_NO_TABLE_MGMT_DATA;
     if(record == NULL)
-        {
-            return -1;
-        }
+    {
+        return -1;
+    }
     TEST_CHECK(serialRecord(record));
     *rel = *tableData;
     return RC_OK;
@@ -285,10 +285,10 @@ RC getRecord (RM_TableData *rel, RID id, Record *record){
     record->id = id;
     
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
-
+    
     BM_BufferPool *bm = temp->bp;
     BM_PageHandle *page = MAKE_PAGE_HANDLE();
-
+    
     TEST_CHECK(pinPage(bm, page, pageNum));
     page->data += (getRecordSize(tableData->schema))*slot;
     
@@ -443,29 +443,29 @@ RC freeSchema (Schema *schema)
      free(schema->dataTypes);
      free(schema->typeLength);
      free(schema->keyAttrs);
-      */
+     */
     return RC_OK;
 }
 
 /* yinan zhang
-// dealing with records and attribute values
-RC createRecord (Record **record, Schema *schema)
-{
-    if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
-    *record = MAKE_RECORD();
-    (*record)->data = (char *)malloc(getRecordSize(schema));
-    (*record)->id.page = -1;
-    (*record)->id.slot = -1;
-    return RC_OK;
-}
-RC freeRecord (Record *record){
-    free(record->data);
-    record->data = NULL;
-    free(record);
-    record = NULL;
-    return RC_OK;
-}
-
+ // dealing with records and attribute values
+ RC createRecord (Record **record, Schema *schema)
+ {
+ if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
+ *record = MAKE_RECORD();
+ (*record)->data = (char *)malloc(getRecordSize(schema));
+ (*record)->id.page = -1;
+ (*record)->id.slot = -1;
+ return RC_OK;
+ }
+ RC freeRecord (Record *record){
+ free(record->data);
+ record->data = NULL;
+ free(record);
+ record = NULL;
+ return RC_OK;
+ }
+ 
  *
  * int getoffset(Schema *schema, int attrNum):
  *
@@ -473,89 +473,89 @@ RC freeRecord (Record *record){
  * output: integer of the offset of the attribute
  * function: return the offset of the attribute in the record data
  *
-int getOffset(Schema *schema, int attrNum){
-    int i, offSet = 0;
-    for (i = 0; i < schema->numAttr; i++)
-    {
-        if (schema->dataTypes[i] == DT_INT) {
-            offSet += sizeof(int);
-        } else if (schema->dataTypes[i] == DT_FLOAT) {
-            offSet += sizeof(float);
-        } else if (schema->dataTypes[i] == DT_BOOL) {
-            offSet += sizeof(bool);
-        } else if (schema->dataTypes[i] != DT_STRING) {
-            offSet += schema->typeLength[i];
-        }
-            }
-    return offSet;
-}
-
-RC getAttr (Record *record, Schema *schema, int attrNum, Value **value)
-{
-    if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
-    if(attrNum < 0 || attrNum >= schema->numAttr)
-    {
-        return RC_RM_WRONG_ATTRNUM;
-    }
-    char *recordData = record->data;
-    int offSet = 0;
-    value[0] =  ((Value *) malloc (sizeof(Value)));
-    offSet = getOffset(schema, attrNum);
-    recordData += offSet;
-    switch(schema->dataTypes[attrNum]){
-        case DT_INT:
-            memcpy(&(value[0]->v.intV), recordData, sizeof(int));
-            break;
-                case DT_STRING:
-            value[0]->v.stringV = (char *)malloc(sizeof(schema->typeLength[attrNum]));
-            memcpy((value[0]->v.stringV), recordData, sizeof(schema->typeLength[attrNum]));
-            break;
-                case DT_FLOAT:
-            memcpy(&(value[0]->v.floatV), recordData, sizeof(float));
-            break;
-                case DT_BOOL:
-            memcpy(&(value[0]->v.boolV), recordData, sizeof(bool));
-            break;
-                default:
-            return RC_RM_UNKOWN_DATATYPE;
-            }
-    value[0]->dt = schema->dataTypes[attrNum];
-    recordData -= offSet;
-    return RC_OK;
-}
-
-RC setAttr (Record *record, Schema *schema, int attrNum, Value *value)
-{
-    if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
-    if(attrNum < 0 || attrNum >= schema->numAttr)
-    {
-        return RC_RM_WRONG_ATTRNUM;
-    }
-    char *recordData = record->data;
-    int offSet = 0;
-    offSet = getOffset(schema, attrNum);
-    recordData += offSet;
-    schema->dataTypes[attrNum] = (value)->dt;
-    switch((value)->dt){
-        case DT_INT:
-            memcpy(recordData, &((value)->v.intV), sizeof(int));
-            break;
-                case DT_STRING:
-            memcpy(recordData, ((value)->v.stringV), sizeof(schema->typeLength[attrNum]));
-            break;
-                case DT_FLOAT:
-            memcpy(recordData, &((value)->v.floatV), sizeof(float));
-            break;
-                case DT_BOOL:
-            memcpy(recordData, &((value)->v.boolV), sizeof(bool));
-            break;
-                default:
-            return RC_RM_UNKOWN_DATATYPE;
-    }
-    recordData -= offSet;
-    record->data = recordData;
-    return RC_OK;
-}
+ int getOffset(Schema *schema, int attrNum){
+ int i, offSet = 0;
+ for (i = 0; i < schema->numAttr; i++)
+ {
+ if (schema->dataTypes[i] == DT_INT) {
+ offSet += sizeof(int);
+ } else if (schema->dataTypes[i] == DT_FLOAT) {
+ offSet += sizeof(float);
+ } else if (schema->dataTypes[i] == DT_BOOL) {
+ offSet += sizeof(bool);
+ } else if (schema->dataTypes[i] != DT_STRING) {
+ offSet += schema->typeLength[i];
+ }
+ }
+ return offSet;
+ }
+ 
+ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value)
+ {
+ if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
+ if(attrNum < 0 || attrNum >= schema->numAttr)
+ {
+ return RC_RM_WRONG_ATTRNUM;
+ }
+ char *recordData = record->data;
+ int offSet = 0;
+ value[0] =  ((Value *) malloc (sizeof(Value)));
+ offSet = getOffset(schema, attrNum);
+ recordData += offSet;
+ switch(schema->dataTypes[attrNum]){
+ case DT_INT:
+ memcpy(&(value[0]->v.intV), recordData, sizeof(int));
+ break;
+ case DT_STRING:
+ value[0]->v.stringV = (char *)malloc(sizeof(schema->typeLength[attrNum]));
+ memcpy((value[0]->v.stringV), recordData, sizeof(schema->typeLength[attrNum]));
+ break;
+ case DT_FLOAT:
+ memcpy(&(value[0]->v.floatV), recordData, sizeof(float));
+ break;
+ case DT_BOOL:
+ memcpy(&(value[0]->v.boolV), recordData, sizeof(bool));
+ break;
+ default:
+ return RC_RM_UNKOWN_DATATYPE;
+ }
+ value[0]->dt = schema->dataTypes[attrNum];
+ recordData -= offSet;
+ return RC_OK;
+ }
+ 
+ RC setAttr (Record *record, Schema *schema, int attrNum, Value *value)
+ {
+ if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
+ if(attrNum < 0 || attrNum >= schema->numAttr)
+ {
+ return RC_RM_WRONG_ATTRNUM;
+ }
+ char *recordData = record->data;
+ int offSet = 0;
+ offSet = getOffset(schema, attrNum);
+ recordData += offSet;
+ schema->dataTypes[attrNum] = (value)->dt;
+ switch((value)->dt){
+ case DT_INT:
+ memcpy(recordData, &((value)->v.intV), sizeof(int));
+ break;
+ case DT_STRING:
+ memcpy(recordData, ((value)->v.stringV), sizeof(schema->typeLength[attrNum]));
+ break;
+ case DT_FLOAT:
+ memcpy(recordData, &((value)->v.floatV), sizeof(float));
+ break;
+ case DT_BOOL:
+ memcpy(recordData, &((value)->v.boolV), sizeof(bool));
+ break;
+ default:
+ return RC_RM_UNKOWN_DATATYPE;
+ }
+ recordData -= offSet;
+ record->data = recordData;
+ return RC_OK;
+ }
  */
 
 // dealing with records and attribute values
@@ -738,8 +738,8 @@ RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
 
 
 /*
-int main()
-{
-    printf("hello");
-}
-*/
+ int main()
+ {
+ printf("hello");
+ }
+ */
