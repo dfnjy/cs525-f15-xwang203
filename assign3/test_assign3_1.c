@@ -73,7 +73,7 @@ char *testName;
 
 // main method
 int 
-main (void) 
+main (void)
 {
   testName = "";
 
@@ -389,6 +389,7 @@ testInsertManyRecords(void)
       TEST_CHECK(insertRecord(table,r)); 
       rids[i] = r->id;
     }
+    
   TEST_CHECK(closeTable(table));
   TEST_CHECK(openTable(table, "test_table_t"));
 

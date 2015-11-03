@@ -35,58 +35,10 @@ typedef struct RM_SH_mgmtData{
 
 RM_TableData *tableData = NULL;
 
-//--------------------Customized
-
-RC serializeFirstPage(Schema *schema, RM_tableData_mgmtData *mgm){
-    RC rc;
-    char *first = (char *)malloc(PAGE_SIZE);
-    memcpy(first, &mgm->numPages, sizeof(int));
-    first += sizeof(int);
-    memcpy(first, &mgm->numRecords, sizeof(int));
-    first += sizeof(int);
-    memcpy(first, &mgm->numRecordsPerPage, sizeof(int));
-    first += sizeof(int);
-    memcpy(first, &mgm->numInsert, sizeof(int));
-    first += sizeof(int);
-    first -= 4*sizeof(int);
-    strcat(first, serializeSchema(schema));
-    rc = createPageFile(tableData->name);
-    if (rc != RC_OK)
-    {
-        return rc;
-    }
-    
-    mgm->bp = MAKE_POOL();
-    mgm->bp->mgmtData = malloc(sizeof(buffer));
-
-    rc = openPageFile(tableData->name, &mgm->bp->fH);
-    if (rc != RC_OK)
-    {
-        return rc;
-    }
-    //write to the first page
-    if(0 == getBlockPos(&mgm->bp->fH)){
-        rc = writeCurrentBlock(&mgm->bp->fH, first);
-        if (rc != RC_OK)
-        {
-            return rc;
-        }
-    }else{
-        rc = writeBlock(0, &mgm->bp->fH, first);
-        if (rc != RC_OK)
-        {
-            return rc;
-        }
-    }
-    free(first);
-    first = NULL;
-    return RC_OK;
-}
-
-
 RC serialRecord(Record *record){
     RC rc;
     if(record == NULL) return RC_RM_UNKOWN_DATATYPE;
+    
     int pageNum = record->id.page;
     int slot = record->id.slot;
     RM_tableData_mgmtData *temp = ((RM_tableData_mgmtData *)tableData->mgmtData);
@@ -99,7 +51,6 @@ RC serialRecord(Record *record){
     {
         return rc;
     }
-    
     page->data += (getRecordSize(tableData->schema))*slot;
     
     memcpy(page->data, record->data, getRecordSize(tableData->schema));
@@ -171,13 +122,31 @@ RC createTable (char *name, Schema *schema)
     if(sizeof(serializeSchema(schema)) + 4*sizeof(int) > PAGE_SIZE)
         return RC_IM_N_TO_LAGE;
     
-    //write to the first Page
-    rc = serializeFirstPage(schema, mgm);
-    if (rc != RC_OK)
-    {
-        return rc;
+    char *firstPage = (char *)malloc(PAGE_SIZE);
+    memcpy(firstPage, &mgm->numPages, sizeof(int));
+    firstPage += sizeof(int);
+    memcpy(firstPage, &mgm->numRecords, sizeof(int));
+    firstPage += sizeof(int);
+    memcpy(firstPage, &mgm->numRecordsPerPage, sizeof(int));
+    firstPage += sizeof(int);
+    memcpy(firstPage, &mgm->numInsert, sizeof(int));
+    firstPage += sizeof(int);
+    //backtracking
+    firstPage -= 4*sizeof(int);
+    
+    strcat(firstPage, serializeSchema(schema));
+    TEST_CHECK(createPageFile(tableData->name));
+    mgm->bp = MAKE_POOL();
+    mgm->bp->mgmtData = malloc(sizeof(buffer));
+    TEST_CHECK(openPageFile(tableData->name, &mgm->bp->fH));
+    if(0 == getBlockPos(&mgm->bp->fH)){
+        TEST_CHECK(writeCurrentBlock(&mgm->bp->fH, firstPage));
+    }else{
+        TEST_CHECK(writeBlock(0, &mgm->bp->fH, firstPage));
     }
-
+    free(firstPage);
+    firstPage = NULL;
+    
     mgm->numPages = 0;
     tableData->mgmtData = mgm;
     return RC_OK;
@@ -243,10 +212,11 @@ RC insertRecord (RM_TableData *rel, Record *record){
             return -1;
         }
     
+    
     if(record == NULL)
-        {
-            return -1;
-        }
+    {
+        return -1;
+    }
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
     //to calculate the number of tuples per page.
     temp->numRecordsPerPage = PAGE_SIZE/getRecordSize(tableData->schema);
@@ -274,9 +244,9 @@ RC insertRecord (RM_TableData *rel, Record *record){
 RC deleteRecord (RM_TableData *rel, RID id){
     RC rc;
     if(rel == NULL)
-        {
-            return -1;
-                }
+    {
+        return -1;
+    }
     int pageNum = id.page;
     int slot = id.slot;
     
@@ -341,9 +311,9 @@ RC updateRecord (RM_TableData *rel, Record *record){
         }
     rc = serialRecord(record);
     if (rc != RC_OK)
-    {
-        return rc;
-    }
+        {
+            return rc;
+        }
 
     *rel = *tableData;
     return RC_OK;
@@ -360,22 +330,22 @@ RC getRecord (RM_TableData *rel, RID id, Record *record){
     record->id = id;
     
     RM_tableData_mgmtData *temp = (RM_tableData_mgmtData *)tableData->mgmtData;
-
+    
     BM_BufferPool *bm = temp->bp;
     BM_PageHandle *page = MAKE_PAGE_HANDLE();
-
+    
     rc = pinPage(bm, page, pageNum);
     if (rc != RC_OK)
-    {
-        return rc;
-    }
+         {
+            return rc;
+         }
+
 
     page->data += (getRecordSize(tableData->schema))*slot;
     
     memcpy(record->data, page->data, getRecordSize(tableData->schema));
     return RC_OK;
 }
-
 
 
 // scans
@@ -397,7 +367,9 @@ RC next (RM_ScanHandle *scan, Record *record){
     RM_SH_mgmtData *mgm = (RM_SH_mgmtData *)scan->mgmtData;
     //if the count number is all records number
     RM_tableData_mgmtData *mgmTable = (RM_tableData_mgmtData *)tableData->mgmtData;
+
     Value *res = MAKE_CVALUE();
+
     res->v.boolV = FALSE;
     while(!res->v.boolV){
         if(mgm->numScan == mgmTable->numRecords) return RC_RM_NO_MORE_TUPLES;
@@ -514,8 +486,10 @@ RC freeSchema (Schema *schema)
     schema->keyAttrs = NULL;
     free(schema);
     schema = NULL;
+    
     return RC_OK;
 }
+
 
 
 RC createRecord (Record **record, Schema *schema){
@@ -584,7 +558,7 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
     
     char *recordData = record->data;
     int off = 0;
-    value[0] = MAKE_CVALUE();
+    value[0] = ((Value *) malloc (sizeof(Value)));
     
     off = getoffset(schema, attrNum);
     recordData += off;
