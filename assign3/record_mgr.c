@@ -7,18 +7,6 @@
 #include "test_helper.h"
 //#include "rm_serializer.c"
 
-#define MAKE_CVALUE()            \
-((Value *) malloc (sizeof(Value)))
-#define MAKE_RECORD()            \
-((Record *) malloc (sizeof(Record)))
-#define MAKE_SCHEMA()            \
-((Schema *) malloc (sizeof(Schema)))
-#define MAKE_TABLE_DATA()				\
-((RM_TableData *) malloc (sizeof(RM_TableData)))
-#define MAKE_MGMTDATA()            \
-((RM_tableData_mgmtData *) malloc (sizeof(RM_tableData_mgmtData)))
-#define MAKE_SCAN_MGMTDATA()            \
-((RM_SH_mgmtData *) malloc (sizeof(RM_SH_mgmtData)))
 
 typedef struct RM_tableData_mgmtData{
     int numPages;//the number of pages of the file
@@ -108,11 +96,11 @@ RC createTable (char *name, Schema *schema)
     if(schema == NULL) return RC_RM_UNKOWN_DATATYPE;
     tableData->name = (char *)malloc(sizeof(name));
     tableData->name = name;
-    tableData->schema = MAKE_SCHEMA();
+    tableData->schema = ((Schema *) malloc (sizeof(Schema)));
     tableData->schema = schema;
     //create the name file to contain the table
     RM_tableData_mgmtData *mgm;
-    mgm = MAKE_MGMTDATA();
+    mgm = ((RM_tableData_mgmtData *) malloc (sizeof(RM_tableData_mgmtData)));
     mgm->numPages = 0;
     mgm->numRecords = 0;
     mgm->numRecordsPerPage = 0;
@@ -136,15 +124,30 @@ RC createTable (char *name, Schema *schema)
     firstPage -= 4*sizeof(int);
     
     strcat(firstPage, serializeSchema(schema));
-    TEST_CHECK(createPageFile(tableData->name));
+    rc = createPageFile(tableData->name);
+    if (rc != RC_OK)
+    {
+        return rc;
+    }
+    
     mgm->bp = MAKE_POOL();
     mgm->bp->mgmtData = malloc(sizeof(buffer));
-    TEST_CHECK(openPageFile(tableData->name, &mgm->bp->fH));
-    if(0 == getBlockPos(&mgm->bp->fH)){
-        TEST_CHECK(writeCurrentBlock(&mgm->bp->fH, firstPage));
-    }else{
-        TEST_CHECK(writeBlock(0, &mgm->bp->fH, firstPage));
+    rc = openPageFile(tableData->name, &mgm->bp->fH);
+    if (rc != RC_OK)
+    {
+        return rc;
     }
+    
+    if(0 == getBlockPos(&mgm->bp->fH)){
+        rc = writeCurrentBlock(&mgm->bp->fH, firstPage);
+    }else{
+        rc = writeBlock(0, &mgm->bp->fH, firstPage);
+    }
+    if (rc != RC_OK)
+    {
+        return rc;
+    }
+    
     free(firstPage);
     firstPage = NULL;
     
@@ -358,7 +361,7 @@ RC getRecord (RM_TableData *rel, RID id, Record *record){
 // scans
 RC startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond){
     if ((rel == NULL)||(scan == NULL)||(cond == NULL)) return RC_RM_UNKOWN_DATATYPE;
-    RM_SH_mgmtData *mgm = MAKE_SCAN_MGMTDATA();
+    RM_SH_mgmtData *mgm = ((RM_SH_mgmtData *) malloc (sizeof(RM_SH_mgmtData)));
     mgm->numScan = 0;
     mgm->cond = cond;
     mgm->nowRID.page = 1;
@@ -375,7 +378,7 @@ RC next (RM_ScanHandle *scan, Record *record){
     //if the count number is all records number
     RM_tableData_mgmtData *mgmTable = (RM_tableData_mgmtData *)tableData->mgmtData;
 
-    Value *res = MAKE_CVALUE();
+    Value *res = ((Value *) malloc (sizeof(Value)));
 
     res->v.boolV = FALSE;
     while(!res->v.boolV){
