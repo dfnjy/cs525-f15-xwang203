@@ -290,7 +290,7 @@ attrOffset (Schema *schema, int attrNum, int *result)
         switch (schema->dataTypes[attrPos])
     {
         case DT_STRING:
-            offset += schema->typeLength[attrPos];
+            offset += schema->typeLength[attrPos] + 1;
             break;
         case DT_INT:
             offset += sizeof(int);

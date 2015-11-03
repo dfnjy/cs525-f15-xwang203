@@ -503,7 +503,7 @@ RC createRecord (Record **record, Schema *schema){
     
     if(schema == NULL) return RC_RM_SCHEMA_NOT_FOUND;
     
-    *record = MAKE_RECORD();
+    *record = ((Record *) malloc (sizeof(Record)));
     (*record)->data = (char *)malloc(getRecordSize(schema));
     
     (*record)->id.page = -1;
@@ -548,8 +548,8 @@ RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
             memcpy(&(value[0]->v.intV), recordData, sizeof(int));
             break;
         case DT_STRING:
-            value[0]->v.stringV = (char *)malloc(sizeof(schema->typeLength[attrNum]));
-            memcpy((value[0]->v.stringV), recordData, sizeof(schema->typeLength[attrNum]));
+            value[0]->v.stringV = (char *)malloc(schema->typeLength[attrNum] + 1);
+            memcpy((value[0]->v.stringV), recordData, schema->typeLength[attrNum] + 1);
             break;
         case DT_FLOAT:
             memcpy(&(value[0]->v.floatV), recordData, sizeof(float));
@@ -589,7 +589,7 @@ RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
             memcpy(recordData, &((value)->v.intV), sizeof(int));
             break;
         case DT_STRING:
-            memcpy(recordData, ((value)->v.stringV), sizeof(schema->typeLength[attrNum]));
+            memcpy(recordData, ((value)->v.stringV), schema->typeLength[attrNum] + 1);
             break;
         case DT_FLOAT:
             memcpy(recordData, &((value)->v.floatV), sizeof(float));
