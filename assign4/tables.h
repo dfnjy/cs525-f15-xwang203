@@ -88,4 +88,7 @@ extern char *serializeRecord(Record *record, Schema *schema);
 extern char *serializeAttr(Record *record, Schema *schema, int attrNum);
 extern char *serializeValue(Value *val);
 
+extern RC attrOffset (Schema *schema, int attrNum, int *result);
+
+
 #endif

@@ -3,7 +3,6 @@
 
 #include "dberror.h"
 #include "expr.h"
-#include "tables.h"
 
 // Bookkeeping for scans
 typedef struct RM_ScanHandle
@@ -42,5 +41,8 @@ extern RC createRecord (Record **record, Schema *schema);
 extern RC freeRecord (Record *record);
 extern RC getAttr (Record *record, Schema *schema, int attrNum, Value **value);
 extern RC setAttr (Record *record, Schema *schema, int attrNum, Value *value);
+
+//customized
+
 
 #endif // RECORD_MGR_H

@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "dberror.h"
 #include "expr.h"
@@ -90,7 +91,7 @@ testInsertAndFind (void)
       TEST_CHECK(findKey(tree, key, &rid));
       ASSERT_EQUALS_RID(insert[pos], rid, "did we find the correct RID?");
     }
-
+    ASSERT_EQUALS_INT(1,1,printTree(tree));
   // cleanup
   TEST_CHECK(closeBtree(tree));
   TEST_CHECK(deleteBtree("testidx"));

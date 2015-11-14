@@ -1,7 +1,7 @@
 #ifndef BUFFER_MGR_STAT_H
 #define BUFFER_MGR_STAT_H
 
-#include "buffer_mgr.h"
+#include "buffer_mgr.h" ////Users/ziluguo/Desktop/CS525project/cs525-f15-xwang203/assign3/buffer_mgr_stat.c
 
 // debug functions
 void printPoolContent (BM_BufferPool *const bm);
