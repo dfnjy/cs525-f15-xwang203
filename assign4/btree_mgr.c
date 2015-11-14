@@ -212,6 +212,7 @@ RC deleteNode(RM_BtreeNode *bTreeNode, int index)
         free(root->ptrs);
         root->ptrs = NULL;
         free(root);
+        root = NULL;
         numNodValue -= 1;
         root = tempN;
         
@@ -424,6 +425,7 @@ RC closeBtree (BTreeHandle *tree)
     bTreeMgmt = NULL;
     free(tree);
     tree = NULL;
+    free(root);
     root = NULL;
     
     return RC_OK;
@@ -602,7 +604,9 @@ RC insertKey (BTreeHandle *tree, Value *key, RID rid)
             leaf->ptrs[sizeofNod - 1] = newLeafNod;
             
             free(NodeRID);
+            NodeRID = NULL;
             free(NodeKeys);
+            NodeKeys = NULL;
             
             RC rc = insertParent(leaf, newLeafNod, newLeafNod->keys[0]);
             if (rc != RC_OK)
@@ -712,25 +716,86 @@ RC closeTreeScan (BT_ScanHandle *handle)
 
 int DFS(RM_BtreeNode *bTreeNode)
 {
+    bTreeNode->pos = globalPos++;
     if (bTreeNode->isLeaf)
         return 0;
-    bTreeNode->pos = globalPos++;
-    for (int i=0;i<bTreeNode->KeyCounts;i++)
+    for (int i=0;i<=bTreeNode->KeyCounts;i++)
     {
         DFS(bTreeNode->ptrs[i]);
     }
     return 0;
 }
 
-int walk(RM_BtreeNode *bTreeNode, char *result, int *lenth)
+int walk(RM_BtreeNode *bTreeNode, char *result)
 {
     char *line = (char *)malloc(100);
-    int len = 100;
+    //int len = 100;
     char *t = (char *) malloc(10);
+    int i = 0, j = 0;
     strcpy(line, "(");
     sprintf(t, "%d", bTreeNode->pos);
     strcat(line, t);
-    strcat(line, ")");
+    strcat(line, ")[");
+    if (bTreeNode->isLeaf){
+        //RID,Key,RID,...
+        i = 0; j = 0;
+        while (i<bTreeNode->KeyCounts)
+        {
+            j = i + i;
+            //RID
+            sprintf(t, "%d.%d,", ((RID *)bTreeNode->ptrs[j])->page, ((RID *)bTreeNode->ptrs[j])->slot);
+            strcat(line, t);
+            //Key
+            j++;
+            sprintf(t, "%d,", bTreeNode->keys[j]);
+            strcat(line, t);
+            i++;
+        }
+        if (bTreeNode->ptrs[sizeofNod - 1] != NULL){
+            //Pos
+            j = ((RM_BtreeNode *)bTreeNode->ptrs[sizeofNod - 1])->pos;
+            sprintf(t, "%d", j);
+            strcat(line, t);
+        }
+        else{
+            line[strlen(line)-1] = 0;//delete ","
+        }
+        strcat(line, "]\n");
+    }
+    else{
+        //not leaf
+        i = 0; j = 0;
+        while (i<bTreeNode->KeyCounts){
+            j = i + i;
+            sprintf(t, "%d,", ((RM_BtreeNode *)bTreeNode->ptrs[j])->pos);
+            strcat(line, t);
+            j++;
+            sprintf(t, "%d,", bTreeNode->keys[j]);
+            strcat(line, t);
+            i++;
+        }
+//        if (((RM_BtreeNode *) bTreeNode->ptrs[i+i]) != NULL){
+//            RM_BtreeNode *debug = ((RM_BtreeNode *)bTreeNode->ptrs[i+i]);
+//            sprintf(t, "%d", ((RM_BtreeNode *)bTreeNode->ptrs[i+i])->pos);
+//            strcat(line, t);
+//        }
+//        else{
+            line[strlen(line)-1] = 0;//delete ","
+//        }
+        strcat(line, "]\n");
+    }
+    strcat(result,line);
+    free(line);
+    line = NULL;
+    free(t);
+    t = NULL;
+//    if (!bTreeNode->isLeaf){
+//        for (int i=0;i<=bTreeNode->KeyCounts;i++)
+//        {
+//            walk(bTreeNode->ptrs[i],result);
+//        }
+//    }
+    return 0;
 }
 
 char *printTree (BTreeHandle *tree)
@@ -739,7 +804,7 @@ char *printTree (BTreeHandle *tree)
         return NULL;
     int lenth = DFS(root);
     lenth = 1000;
-    char *result = malloc(len*sizeof(char));
-    walk(root, result, &lenth);
-    return "";
+    char *result = malloc(lenth*sizeof(char));
+    walk(root, result);
+    return result;
 }
