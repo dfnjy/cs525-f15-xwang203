@@ -1,7 +1,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * Assignment-3: 
 
-	The assignment is to implement a simple record manager that allows navigation through records, and inserting and deleting records. All rights reserved.
+	The assignment is to implement a B+ tree index. All rights reserved.
 
 * Created by:
 	Yinan Zhang 
@@ -12,11 +12,12 @@
 
 * Included files:
 
-	README.txt        dberror.c         makefile          storage_mgr.h
-	buffer_mgr.c      dberror.h         record_mgr.c      tables.h
-	buffer_mgr.h      dt.h              record_mgr.h      test_assign3_1.c
-	buffer_mgr_stat.c expr.c            rm_serializer.c   test_expr.c
-	buffer_mgr_stat.h expr.h            storage_mgr.c     test_helper.h
+	README.txt        buffer_mgr_stat.h makefile          tables.h
+	btree_mgr.c       dberror.c         record_mgr.c      test_assign4_1.c
+	btree_mgr.h       dberror.h         record_mgr.h      test_expr.c
+	buffer_mgr.c      dt.h              rm_serializer.c   test_helper.h
+	buffer_mgr.h      expr.c            storage_mgr.c
+	buffer_mgr_stat.c expr.h            storage_mgr.h
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -28,9 +29,9 @@ Installation instruction:
 
 	2. Run “make” command to compile the code
 
-	3. Run test_assign3_1 
+	3. Run test_assign4_1 
 
-	4. View the result of the test_assign1 file:
+	4. View the result of the test_assign4 file:
 
 	5. If you want to re-run the executable files, start from step 3. If you want to re-compile the files, start from step 1.
 
@@ -38,116 +39,89 @@ Installation instruction:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Function Description:
 
-1) initRecordManager (void *mgmtData)
+1) initIndexManager (void *mgmtData)
 
-	initialize tableData
+	Initialize index manager.
 
+2) shutdownIndexManager ()
 
-2) shutdownRecordManager():
+	Close index manager and free resources.
 
-	free resources
+3) createBtree (char *idxId, DataType keyType, int n)
 
+	Apply resources and initialize a B+ tree.
 
-3) createTable(char *name, Schema *schema):
+4) openBtree (BTreeHandle **tree, char *idxId)
 
-	create table information and put them in the first page
+	Open an existing B+ tree.
 
- 
-4) openTable (RM_TableData *rel, char *name):
- 
-	initialize buffer pool
- 
+5) closeBtree (BTreeHandle *tree)
 
-5) closeTable (RM_TableData *rel):
- 
-	shutdown buffer pool
- 
+	Close a B+ tree and free resources.
 
-6) deleteTable (char *name):
- 
-	delete the table file
- 
+6) deleteBtree (char *idxId)
 
-7) getNumTuples (RM_TableData *rel):
- 
-	count the number of tuples in the table
+	Delete a B+ tree from disk.
 
+7) getNumNodes (BTreeHandle *tree, int *result)
 
-8) insertRecord (RM_TableData *rel, Record *record):
- 
-	insert the record into table
+	Get number of nodes from a B+ tree.
 
- 
-9) deleteRecord (RM_TableData *rel, RID id):
- 
-	delete the record from table 
- 
+8) getNumEntries (BTreeHandle *tree, int *result)
 
-10) updateRecord (RM_TableData *rel, Record *record):
- 
-	update the record from table 
- 
+	Get number of entries from a B+ tree.
 
-11) getRecord (RM_TableData *rel, RID id, Record *record):
- 
-	find the desired record
+9) getKeyType (BTreeHandle *tree, DataType *result)
 
+	Get Key Type of a B+ tree.
 
-12) startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond):
- 
-	initialize scan handle
- 
+10) findKey (BTreeHandle *tree, Value *key, RID *result)
 
-13) next (RM_ScanHandle *scan, Record *record):
+	Find a key in B+ tree and return the RID result.
 
-	find next
- 
+11) insertKey (BTreeHandle *tree, Value *key, RID rid)
 
-14) closeScan (RM_ScanHandle *scan):
- 
-	close and free the scan handle 
+	Insert a key into a B+ tree.
 
+12) deleteKey (BTreeHandle *tree, Value *key)
 
-15) getRecordSize (Schema *schema):
-	
-	return the length needed for this schema
- 
+	Delete a key from a B+ tree.
 
-16) createSchema (int numAttr, char **attrNames, DataType *dataTypes, int *typeLength, 
-	int keySize, int *keys):
- 
-	create new schema
- 
+13) openTreeScan (BTreeHandle *tree, BT_ScanHandle **handle)
 
-17) freeSchema (Schema *schema):
- 
-	free the schema
- 
+	Initialize the scan handle and prepare for scan.
 
-18) createRecord (Record **record, Schema *schema):
- 
-	create the record with the give schema
- 
+14) nextEntry (BT_ScanHandle *handle, RID *result)
 
-19) freeRecord (Record *record):
- 
-	free the record
+	Return next entry during scanning.
 
+15) closeTreeScan (BT_ScanHandle *handle)
 
-23) getAttr (Record *record, Schema *schema, int attrNum, Value **value):
- 
-	get the schema format of the record
- 
+	Stop scanning and free resources.
 
-24) setAttr (Record *record, Schema *schema, int attrNum, Value *value):
- 
-	set the attributes into a schema format
+16) printTree (BTreeHandle *tree)
 
+	return the printing of the tree in the format. This is a debug function.
 
-25) doRecord (Record *record):
-	
-	serialize the record and put it in the page
+17) DFS(RM_BtreeNode *bTreeNode)
 
+	Do a pre-order tree walk and assign positions to tree nodes.
+
+18) walk(RM_BtreeNode *bTreeNode, char *result)
+
+	Do a pre-order tree walk and generate the printing string.
+
+19) createNewNod()
+
+	return a newly created B+ tree node.
+
+20) insertParent(RM_BtreeNode *left, RM_BtreeNode *right, int key)
+
+	Insert key into non-leaf B+ tree node recursively.
+
+21) deleteNode(RM_BtreeNode *bTreeNode, int index)
+
+	Delete the node recursively if needed.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Extra Credits:

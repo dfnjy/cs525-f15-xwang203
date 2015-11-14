@@ -6,7 +6,7 @@ OBJ = btree_mgr.c storage_mgr.o dberror.o buffer_mgr_stat.o buffer_mgr.o expr.o 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: test_expr test_assign3
+all: test_expr test_assign4
 
 test_assign4_1.o: test_assign4_1.c
 	$(CC) -c test_assign4_1.c

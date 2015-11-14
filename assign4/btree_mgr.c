@@ -335,6 +335,10 @@ RC deleteNode(RM_BtreeNode *bTreeNode, int index)
 // init and shutdown index manager
 RC initIndexManager (void *mgmtData)
 {
+    root = NULL;
+    numNodValue = 0;
+    sizeofNod = 0;
+    globalPos = 0;
     return RC_OK;
 }
 RC shutdownIndexManager ()
@@ -409,6 +413,7 @@ RC openBtree (BTreeHandle **tree, char *idxId)
     
     return RC_OK;
 }
+
 RC closeBtree (BTreeHandle *tree)
 {
     if(tree == NULL) return RC_IM_KEY_NOT_FOUND;
@@ -430,6 +435,7 @@ RC closeBtree (BTreeHandle *tree)
     
     return RC_OK;
 }
+
 RC deleteBtree (char *idxId)
 {
     if(idxId == NULL) return RC_IM_KEY_NOT_FOUND;
@@ -731,30 +737,26 @@ int walk(RM_BtreeNode *bTreeNode, char *result)
     char *line = (char *)malloc(100);
     //int len = 100;
     char *t = (char *) malloc(10);
-    int i = 0, j = 0;
+    int i = 0;
     strcpy(line, "(");
     sprintf(t, "%d", bTreeNode->pos);
     strcat(line, t);
     strcat(line, ")[");
     if (bTreeNode->isLeaf){
         //RID,Key,RID,...
-        i = 0; j = 0;
-        while (i<bTreeNode->KeyCounts)
-        {
-            j = i + i;
+        i = 0;
+        for (i=0;i<bTreeNode->KeyCounts;i++){
             //RID
-            sprintf(t, "%d.%d,", ((RID *)bTreeNode->ptrs[j])->page, ((RID *)bTreeNode->ptrs[j])->slot);
+            sprintf(t, "%d.%d,", ((RID *)bTreeNode->ptrs[i])->page, ((RID *)bTreeNode->ptrs[i])->slot);
             strcat(line, t);
             //Key
-            j++;
-            sprintf(t, "%d,", bTreeNode->keys[j]);
+            sprintf(t, "%d,", bTreeNode->keys[i]);
             strcat(line, t);
-            i++;
         }
         if (bTreeNode->ptrs[sizeofNod - 1] != NULL){
             //Pos
-            j = ((RM_BtreeNode *)bTreeNode->ptrs[sizeofNod - 1])->pos;
-            sprintf(t, "%d", j);
+            i = ((RM_BtreeNode *)bTreeNode->ptrs[sizeofNod - 1])->pos;
+            sprintf(t, "%d", i);
             strcat(line, t);
         }
         else{
@@ -764,24 +766,20 @@ int walk(RM_BtreeNode *bTreeNode, char *result)
     }
     else{
         //not leaf
-        i = 0; j = 0;
-        while (i<bTreeNode->KeyCounts){
-            j = i + i;
-            sprintf(t, "%d,", ((RM_BtreeNode *)bTreeNode->ptrs[j])->pos);
+        i = 0;
+        for (i=0;i<bTreeNode->KeyCounts;i++){
+            sprintf(t, "%d,", ((RM_BtreeNode *)bTreeNode->ptrs[i])->pos);
             strcat(line, t);
-            j++;
-            sprintf(t, "%d,", bTreeNode->keys[j]);
+            sprintf(t, "%d,", bTreeNode->keys[i]);
             strcat(line, t);
-            i++;
         }
-//        if (((RM_BtreeNode *) bTreeNode->ptrs[i+i]) != NULL){
-//            RM_BtreeNode *debug = ((RM_BtreeNode *)bTreeNode->ptrs[i+i]);
-//            sprintf(t, "%d", ((RM_BtreeNode *)bTreeNode->ptrs[i+i])->pos);
-//            strcat(line, t);
-//        }
-//        else{
+        if (((RM_BtreeNode *) bTreeNode->ptrs[i]) != NULL){
+            sprintf(t, "%d", ((RM_BtreeNode *)bTreeNode->ptrs[i])->pos);
+            strcat(line, t);
+        }
+        else{
             line[strlen(line)-1] = 0;//delete ","
-//        }
+        }
         strcat(line, "]\n");
     }
     strcat(result,line);
@@ -789,12 +787,12 @@ int walk(RM_BtreeNode *bTreeNode, char *result)
     line = NULL;
     free(t);
     t = NULL;
-//    if (!bTreeNode->isLeaf){
-//        for (int i=0;i<=bTreeNode->KeyCounts;i++)
-//        {
-//            walk(bTreeNode->ptrs[i],result);
-//        }
-//    }
+    if (!bTreeNode->isLeaf){
+        for (int i=0;i<=bTreeNode->KeyCounts;i++)
+        {
+            walk(bTreeNode->ptrs[i],result);
+        }
+    }
     return 0;
 }
 
