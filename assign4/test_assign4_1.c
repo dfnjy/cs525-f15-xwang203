@@ -74,7 +74,7 @@ testInsertAndFind (void)
   // insert keys
   for(i = 0; i < numInserts; i++)
     TEST_CHECK(insertKey(tree, keys[i], insert[i]));
-ASSERT_EQUALS_INT(1,1,printTree(tree));
+    //ASSERT_EQUALS_INT(1,1,printTree(tree));
   // check index stats
   TEST_CHECK(getNumNodes(tree, &testint));
   ASSERT_EQUALS_INT(testint,4, "number of nodes in btree");
@@ -234,8 +234,10 @@ testIndexScan (void)
       TEST_CHECK(openBtree(&tree, "testidx"));
 
       // insert keys
-      for(i = 0; i < numInserts; i++)
+        for(i = 0; i < numInserts; i++){
 	TEST_CHECK(insertKey(tree, keys[permute[i]], insert[permute[i]]));
+            //ASSERT_EQUALS_INT(1,1,printTree(tree));
+        }
 
       // check index stats
       TEST_CHECK(getNumEntries(tree, &testint));
@@ -243,7 +245,7 @@ testIndexScan (void)
       
       // execute scan, we should see tuples in sort order
       openTreeScan(tree, &sc);
-        ASSERT_EQUALS_INT(1,1,printTree(tree));
+        
       i = 0;
       while((rc = nextEntry(sc, &rid)) == RC_OK)
 	{

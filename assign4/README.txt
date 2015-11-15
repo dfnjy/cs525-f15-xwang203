@@ -1,5 +1,5 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* Assignment-3: 
+* Assignment-4: 
 
 	The assignment is to implement a B+ tree index. All rights reserved.
 
@@ -126,14 +126,9 @@ Function Description:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Extra Credits:
 
-1) TIDs and tombstones: 
+1) Allow different data types as keys
 
-This program keeps track of the total inserted record number (as a TID).
-We set '0\' as a tomestone in the place of deleted records.
-
-2) Check primary key constraints:
-
-This program uses a simple hash table to check primary key constraints.
+	This program allows other data types(Value) introduced in assignment 3 to be used as keys for the B+-tree.
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
