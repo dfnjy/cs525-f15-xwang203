@@ -24,6 +24,7 @@ typedef struct RM_ScanData_mgmtData{
 
 RM_TableData *tableData = NULL;
 int recordPoolSize = 0;
+int count = 0;
 
 RC doRecord (Record *record)
 {
@@ -35,6 +36,11 @@ RC doRecord (Record *record)
     BM_BufferPool *bm = ((RM_tableData_mgmtData *)tableData->mgmtData)->bm;
     BM_PageHandle *page = (BM_PageHandle *)malloc(sizeof(BM_PageHandle));
     int offslot = getRecordSize(tableData->schema);
+    if (count>1000){
+    ((buffer *)((RM_tableData_mgmtData *)tableData->mgmtData)->bm->mgmtData)->numWrite= ((buffer *)((RM_tableData_mgmtData *)tableData->mgmtData)->bm->mgmtData)->numWrite * 0.8;
+        count = 0;
+    }
+    else count++;
     
     page->data = (char *)malloc(PAGE_SIZE);
     

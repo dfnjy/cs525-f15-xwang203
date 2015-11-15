@@ -11,8 +11,10 @@
 RC
 setUpContest (int numPages)
 {
-  initRecordManager(&numPages);
-    initIndexManager(&numPages);
+    int a = numPages/10*7;
+    int b = numPages - a;
+  initRecordManager(&a);
+    initIndexManager(&b);
   return RC_OK;
 }
 
