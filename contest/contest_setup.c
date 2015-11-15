@@ -5,13 +5,14 @@
 #include "storage_mgr.h"
 #include "buffer_mgr.h"
 #include "record_mgr.h"
+#include "btree_mgr.h"
 
 /* set up record, buffer, pagefile, and index managers */
 RC
 setUpContest (int numPages)
 {
-  initStorageManager();
-  initRecordManager(NULL);
+  initRecordManager(&numPages);
+    initIndexManager(&numPages);
   return RC_OK;
 }
 
@@ -27,5 +28,5 @@ shutdownContest (void)
 long
 getContestIOs (void)
 {
-  return 1;
+    return bTreeNumIO() + recordNumIO();
 }

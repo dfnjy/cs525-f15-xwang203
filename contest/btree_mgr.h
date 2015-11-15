@@ -42,4 +42,7 @@ extern RC closeTreeScan (BT_ScanHandle *handle);
 // debug and test functions
 extern char *printTree (BTreeHandle *tree);
 
+//Customized
+extern int bTreeNumIO();
+
 #endif // BTREE_MGR_H

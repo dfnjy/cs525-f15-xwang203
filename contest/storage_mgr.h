@@ -13,6 +13,7 @@ typedef struct SM_FileHandle {
   void *mgmtInfo;
 } SM_FileHandle;
 
+
 typedef char* SM_PageHandle;
 
 /************************************************************
