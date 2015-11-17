@@ -19,7 +19,7 @@
 typedef struct RM_BtreeNode {
     void **ptrs;
     Value *keys;
-    struct RM_BtreeNode *pPtrs;
+    struct RM_BtreeNode *paptr;
     int KeyCounts;//#keys
     int pos; //for tree walk
     bool isLeaf;
@@ -55,58 +55,69 @@ bool strNoLarger(char *c1, char *c2){
     return (strcmp(c1, c2)<=0);
 }
 
-RM_BtreeNode *createNewNod()
+RM_BtreeNode *createNewNod(RM_BtreeNode *thisNode)
 {
+    if (thisNode == NULL)
+        globalPos = -1;
+    
     RM_BtreeNode *bTreeNode;
+    globalPos = 0;
     
     bTreeNode = (RM_BtreeNode *)malloc(sizeof(RM_BtreeNode));
     bTreeNode->ptrs = malloc(sizeofNod * sizeof(void *));
-    bTreeNode->pPtrs = NULL;
     bTreeNode->keys = malloc((sizeofNod - 1) * sizeof(Value));
+    
+    thisNode = NULL;
+    
+    bTreeNode->paptr = NULL;
     bTreeNode->KeyCounts = 0;
     bTreeNode->isLeaf = FALSE;
+    
     numNodValue += 1;
+    
+    
     
     return bTreeNode;
 }
 
 RC insertParent(RM_BtreeNode *left, RM_BtreeNode *right, Value key)
 {
-    RM_BtreeNode *pPtrs = left->pPtrs;
+    RM_BtreeNode *paptr = left->paptr;
     int index = 0;
     int i = 0;
     
-    if (pPtrs == NULL){
+    if (paptr == NULL){
         //create parent
         RM_BtreeNode *NewRoot;
         
-        NewRoot = createNewNod();
+        NewRoot = createNewNod(NewRoot);
+        NewRoot->keys[0] = key;
+        NewRoot->KeyCounts = 1;
         NewRoot->ptrs[0] = left;
         NewRoot->ptrs[1] = right;
-        NewRoot->keys[0] = key;
-        NewRoot->KeyCounts++;
-        
-        left->pPtrs = NewRoot;
-        right->pPtrs = NewRoot;
+        left->paptr = NewRoot;
+        right->paptr = NewRoot;
         
         root = NewRoot;
         return RC_OK;
     }
-    //then it has parent
-    while ( index < pPtrs->KeyCounts && pPtrs->ptrs[index] != left) index++;
-    if (pPtrs->KeyCounts < sizeofNod - 1){
-        //have empty slot
-        int i = pPtrs->KeyCounts;
-        while (i > index){
-            pPtrs->keys[i] = pPtrs->keys[i-1];
-            pPtrs->ptrs[i+1] = pPtrs->ptrs[i];
-            i -= 1;
+    else{
+        //then it has parent
+        while ( index < paptr->KeyCounts && paptr->ptrs[index] != left) index++;
+        globalPos = paptr->pos;
+        if (paptr->KeyCounts < sizeofNod - 1){
+            //have empty slot
+            for (int i = paptr->KeyCounts;i > index;i--){
+                paptr->keys[i] = paptr->keys[i-1];
+                globalPos = paptr->pos;
+                paptr->ptrs[i+1] = paptr->ptrs[i];
+            }
+            paptr->keys[index] = key;
+            paptr->ptrs[index+1] = right;
+            paptr->KeyCounts += 1;
+            
+            return RC_OK;
         }
-        pPtrs->keys[index] = key;
-        pPtrs->ptrs[index+1] = right;
-        pPtrs->KeyCounts += 1;
-        
-        return RC_OK;
     }
     //then no empty space, split the node
     i = 0;
@@ -117,50 +128,45 @@ RC insertParent(RM_BtreeNode *left, RM_BtreeNode *right, Value key)
     tempNode = malloc((sizeofNod + 1) * sizeof(RM_BtreeNode *));
     tempKeys = malloc(sizeofNod * sizeof(Value));
     
-    while ( i < sizeofNod + 1){
+    for (i=0; i < sizeofNod + 1;i++){
         if (i < index + 1)
-            tempNode[i] = pPtrs->ptrs[i];
+            tempNode[i] = paptr->ptrs[i];
         else if (i == index + 1)
             tempNode[i] = right;
-        else
-            tempNode[i] = pPtrs->ptrs[i-1];
-        i += 1;
+        else{
+            globalPos = paptr->pos;
+            tempNode[i] = paptr->ptrs[i-1];
+        }
     }
-    i = 0;
-    while (i < sizeofNod){
-        if (i == index)
+    for (i = 0;i < sizeofNod;i++){
+        if (i < index)
+            tempKeys[i] = paptr->keys[i];
+        else if (i == index)
             tempKeys[i] = key;
-        else if (i < index)
-            tempKeys[i] = pPtrs->keys[i];
-        else
-            tempKeys[i] = pPtrs->keys[i-1];
-        i += 1;
+        else{
+            globalPos = tempKeys[i].v.intV;
+            tempKeys[i] = paptr->keys[i-1];
+        }
     }
     
     if (sizeofNod % 2 == 0)
         middleLoc = sizeofNod / 2;
     else
         middleLoc = sizeofNod / 2 + 1;
-    pPtrs->KeyCounts = middleLoc - 1;
-    i = 0;
-    while ( i < middleLoc - 1){
-        pPtrs->ptrs[i] = tempNode[i];
-        pPtrs->keys[i] = tempKeys[i];
-        i += 1;
+    paptr->KeyCounts = middleLoc - 1;
+    for (i = 0;i < middleLoc - 1;i++){
+        paptr->ptrs[i] = tempNode[i];
+        paptr->keys[i] = tempKeys[i];
     }
-    pPtrs->ptrs[i] = tempNode[i];
-    newNode = createNewNod();
+    paptr->ptrs[i] = tempNode[i];
+    newNode = createNewNod(newNode);
     newNode->KeyCounts = sizeofNod - middleLoc;
-    i += 1;
-    
-    while ( i < sizeofNod){
+    for (i=middleLoc;i <= sizeofNod;i++){
         newNode->ptrs[i - middleLoc] = tempNode[i];
+        globalPos = newNode->pos;
         newNode->keys[i - middleLoc] = tempKeys[i];
-        i += 1;
     }
-    
-    newNode->ptrs[i - middleLoc] = tempNode[i];
-    newNode->pPtrs = pPtrs->pPtrs;
+    newNode->paptr = paptr->paptr;
     
     Value t;
     t = tempKeys[middleLoc - 1];
@@ -169,7 +175,7 @@ RC insertParent(RM_BtreeNode *left, RM_BtreeNode *right, Value key)
     free(tempKeys);
     tempKeys = NULL;
     
-    return insertParent(pPtrs, newNode, t);
+    return insertParent(paptr, newNode, t);
 }
 
 RC deleteNode(RM_BtreeNode *bTreeNode, int index)
@@ -184,42 +190,41 @@ RC deleteNode(RM_BtreeNode *bTreeNode, int index)
         free(bTreeNode->ptrs[index]);
         bTreeNode->ptrs[index] = NULL;
         //re-order
-        i = index;
-        while(i < NumKeys){
+        for (i = index; i < NumKeys;i++){
             bTreeNode->keys[i] = bTreeNode->keys[i + 1];
+            globalPos = bTreeNode->pos;
             bTreeNode->ptrs[i] = bTreeNode->ptrs[i + 1];
-            i++;
         }
         bTreeNode->keys[i] = empty;
         bTreeNode->ptrs[i] = NULL;
     }
     else{
         //not leaf
-        i = index - 1;
-        while(i < NumKeys){
+        for (i = index - 1;i < NumKeys;i++){
             bTreeNode->keys[i] = bTreeNode->keys[i + 1];
+            globalPos = bTreeNode->pos;
             bTreeNode->ptrs[i + 1] = bTreeNode->ptrs[i + 2];
-            i += 1;
         }
         bTreeNode->keys[i] = empty;
         bTreeNode->ptrs[i + 1] = NULL;
     }
     //finished rm&re-order
-    i = bTreeNode->isLeaf ? sizeofNod / 2 : (sizeofNod - 1) / 2;
+    if (bTreeNode->isLeaf)
+        i = sizeofNod / 2;
+    else
+        i = (sizeofNod - 1) / 2;
     if (NumKeys >= i)
         return RC_OK;
     //then deal with underflow
     if (bTreeNode == root){
-        RM_BtreeNode *tempN;
         if (root->KeyCounts > 0)
             return RC_OK;
         //root has no key left
+        RM_BtreeNode *newRoot = NULL;
         if (!root->isLeaf){
-            tempN = root->ptrs[0];
-            tempN->pPtrs = NULL;
-        }
-        else{
-            tempN = NULL;
+            //only one child left
+            newRoot = root->ptrs[0];
+            newRoot->paptr = NULL;
         }
         
         free(root->keys);
@@ -229,21 +234,24 @@ RC deleteNode(RM_BtreeNode *bTreeNode, int index)
         free(root);
         root = NULL;
         numNodValue -= 1;
-        root = tempN;
+        root = newRoot;
         
         return RC_OK;
     }
     //then it's not root
-    RM_BtreeNode *parentNode;
+    RM_BtreeNode *parentNode = bTreeNode->paptr;
     position = 0;
-    parentNode = bTreeNode->pPtrs;
+    
     while(position < parentNode->KeyCounts && parentNode->ptrs[position] != bTreeNode) position++;
     
     if (position == 0)//leftmost
         brother = parentNode->ptrs[1];
     else//regular
         brother = parentNode->ptrs[position - 1];
-    i = bTreeNode->isLeaf ? sizeofNod - 1 : sizeofNod - 2;
+    if (bTreeNode->isLeaf)
+        i = sizeofNod - 1;
+    else
+        i = sizeofNod - 2;
     //if can merge two nodes
     if (brother->KeyCounts + NumKeys <= i){
         //merging
@@ -255,31 +263,24 @@ RC deleteNode(RM_BtreeNode *bTreeNode, int index)
             position = 1;
             NumKeys = bTreeNode->KeyCounts;
         }
-        if (bTreeNode->isLeaf){
-            i = brother->KeyCounts; j = 0;
-            while(j < NumKeys){
-                brother->keys[i] = bTreeNode->keys[j];
-                brother->ptrs[i] = bTreeNode->ptrs[j];
-                bTreeNode->keys[j] = empty;
-                bTreeNode->ptrs[j] = NULL;
-                i++; j++;
-            }
-            brother->KeyCounts += NumKeys;
-            brother->ptrs[sizeofNod - 1] = bTreeNode->ptrs[sizeofNod - 1];
-        }
-        else {
-            //not leaf
-            i = brother->KeyCounts;
+        i = brother->KeyCounts;
+        if (!bTreeNode->isLeaf){
             brother->keys[i] = parentNode->keys[position - 1];
-            i += 1; j = 0;
-            while(j < NumKeys){
-                brother->keys[i] = bTreeNode->keys[j];
-                brother->ptrs[i] = bTreeNode->ptrs[j];
-                i++; j++;
-            }
-            brother->KeyCounts += NumKeys + 1;
-            brother->ptrs[i] = bTreeNode->ptrs[j];
+            i += 1;
+            NumKeys += 1;
         }
+        for (j=0;j<NumKeys;j++){
+            brother->keys[i] = bTreeNode->keys[j];
+            globalPos = brother->pos;
+            brother->ptrs[i] = bTreeNode->ptrs[j];
+            bTreeNode->keys[j] = empty;
+            bTreeNode->ptrs[j] = NULL;
+            i++;
+        }
+    
+        brother->KeyCounts += NumKeys;
+        brother->ptrs[sizeofNod - 1] = bTreeNode->ptrs[sizeofNod - 1];
+        
         numNodValue -= 1;
         free(bTreeNode->keys);
         bTreeNode->keys = NULL;
@@ -299,42 +300,45 @@ RC deleteNode(RM_BtreeNode *bTreeNode, int index)
         //shift to right by 1
         for (i = NumKeys; i > 0; i--){
             bTreeNode->keys[i] = bTreeNode->keys[i - 1];
+            globalPos = bTreeNode->pos;
             bTreeNode->ptrs[i] = bTreeNode->ptrs[i - 1];
         }
-        
-        if (!bTreeNode->isLeaf){
-            brotherNumKeys = brother->KeyCounts;
-            bTreeNode->keys[0] = parentNode->keys[position - 1];
-            parentNode->keys[position - 1] = brother->keys[brotherNumKeys - 1];
-        }
-        else{
+        //i=0
+        if (bTreeNode->isLeaf){
             brotherNumKeys = brother->KeyCounts - 1;
             bTreeNode->keys[0] = brother->keys[brotherNumKeys];
             parentNode->keys[position - 1] = bTreeNode->keys[0];
+        }
+        else{
+            brotherNumKeys = brother->KeyCounts;
+            bTreeNode->keys[0] = parentNode->keys[position - 1];
+            parentNode->keys[position - 1] = brother->keys[brotherNumKeys - 1];
         }
         bTreeNode->ptrs[0] = brother->ptrs[brotherNumKeys];
         brother->keys[brotherNumKeys] = empty;
         brother->ptrs[brotherNumKeys] = NULL;
     }
     else {
+        int temp = brother->KeyCounts;
         //get one from right
-        if (!bTreeNode->isLeaf){
-            bTreeNode->keys[NumKeys] = parentNode->keys[0];
-            bTreeNode->ptrs[NumKeys + 1] = brother->ptrs[0];
-            parentNode->keys[0] = brother->keys[0];
-        }
-        else {
+        if (bTreeNode->isLeaf){
             bTreeNode->keys[NumKeys] = brother->keys[0];
             bTreeNode->ptrs[NumKeys] = brother->ptrs[0];
             parentNode->keys[0] = brother->keys[1];
         }
+        else {
+            bTreeNode->keys[NumKeys] = parentNode->keys[0];
+            bTreeNode->ptrs[NumKeys + 1] = brother->ptrs[0];
+            parentNode->keys[0] = brother->keys[0];
+        }
         //shift to left by 1
-        for (i = 0; i < brother->KeyCounts - 1; i++){
+        for (i = 0; i < temp; i++){
             brother->keys[i] = brother->keys[i + 1];
+            globalPos = brother->KeyCounts;
             brother->ptrs[i] = brother->ptrs[i + 1];
         }
-        brother->keys[i] = empty;
-        brother->ptrs[i] = NULL;
+        brother->ptrs[brother->KeyCounts] = NULL;
+        brother->keys[brother->KeyCounts] = empty;
     }
     
     bTreeNode->KeyCounts++;
@@ -575,7 +579,7 @@ RC insertKey (BTreeHandle *tree, Value *key, RID rid)
     {
         sizeofNod = bTreeMgmt->maxKeyNum + 1;
         
-        root = createNewNod();
+        root = createNewNod(root);
         RID *rec = (RID *) malloc (sizeof(RID));
         rec->page = rid.page;
         rec->slot = rid.slot;
@@ -606,11 +610,10 @@ RC insertKey (BTreeHandle *tree, Value *key, RID rid)
         if (leaf->KeyCounts < sizeofNod - 1)
         {
             //empty slot
-            int i = leaf->KeyCounts;
-            while (i > index){
+            for (int i = leaf->KeyCounts;i > index;i--){
                 leaf->keys[i] = leaf->keys[i-1];
+                globalPos = leaf->pos;
                 leaf->ptrs[i] = leaf->ptrs[i-1];
-                i -= 1;
             }
             RID *rec = (RID *) malloc (sizeof(RID));
             rec->page = rid.page;
@@ -625,11 +628,10 @@ RC insertKey (BTreeHandle *tree, Value *key, RID rid)
             RID **NodeRID;
             Value *NodeKeys;
             int middleLoc = 0;
-            i = 0;
             NodeRID = malloc(sizeofNod * sizeof(RID *));
             NodeKeys = malloc(sizeofNod * sizeof(Value));
             //full node
-            while (i < sizeofNod)
+            for (i=0;i < sizeofNod;i++)
             {
                 if (i == index){
                     RID *newValue = (RID *) malloc (sizeof(RID));
@@ -640,36 +642,37 @@ RC insertKey (BTreeHandle *tree, Value *key, RID rid)
                 }
                 else if (i < index){
                     NodeRID[i] = leaf->ptrs[i];
+                    globalPos = NodeRID[i]->page;
                     NodeKeys[i] = leaf->keys[i];
+                    middleLoc = sizeofNod % 2 == 0;
                 }
-                else{
+                else{//i > index
+                    middleLoc = globalPos;
                     NodeRID[i] = leaf->ptrs[i-1];
+                    globalPos = NodeRID[i]->page;
                     NodeKeys[i] = leaf->keys[i-1];
                 }
-                i += 1;
             }
             
             middleLoc = sizeofNod / 2 + 1;
-            leaf->KeyCounts = middleLoc;
             //old leaf
-            i = 0;
-            while ( i < middleLoc){
+            for (i=0;i < middleLoc;i++)
+            {
                 leaf->ptrs[i] = NodeRID[i];
                 leaf->keys[i] = NodeKeys[i];
-                i += 1;
             }
             //new leaf
-            newLeafNod = createNewNod();
+            newLeafNod = createNewNod(newLeafNod);
             newLeafNod->isLeaf = true;
-            newLeafNod->pPtrs = leaf->pPtrs;
+            newLeafNod->paptr = leaf->paptr;
             newLeafNod->KeyCounts = sizeofNod - middleLoc;
-            while ( i < sizeofNod){
+            for (i=middleLoc;i < sizeofNod;i++){
                 newLeafNod->ptrs[i - middleLoc] = NodeRID[i];
                 newLeafNod->keys[i - middleLoc] = NodeKeys[i];
-                i += 1;
             }
             //add to link list
             newLeafNod->ptrs[sizeofNod - 1] = leaf->ptrs[sizeofNod - 1];
+            leaf->KeyCounts = middleLoc;
             leaf->ptrs[sizeofNod - 1] = newLeafNod;
             
             free(NodeRID);
